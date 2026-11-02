@@ -161,12 +161,7 @@ git pull origin main
 git branch -d feature/closet-upload
 ```
 
-> 급하게 로컬에서 직접 merge해야 할 때(예전 git.md 방식)는 팀에 먼저 알리고 진행합니다.
-> ```bash
-> git checkout main && git pull origin main
-> git merge feature/브랜치이름
-> git push origin main
-> ```
+> main 직접 커밋·푸시 예외는 두지 않습니다. 모든 변경은 작업 브랜치와 PR로 통합합니다.
 
 ---
 

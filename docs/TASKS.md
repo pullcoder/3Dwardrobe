@@ -21,8 +21,8 @@
 | T0-1 | 문서 구조 정리 (README, AGENTS/CLAUDE, docs/) | PM | ✅ |
 | T0-2 | GitHub main 브랜치 보호 규칙, PR 템플릿 | PM | ⬜ |
 | T0-3 | `docker-compose.yml` (PostgreSQL + Redis) | AI | ⬜ |
-| T0-4 | backend 뼈대: FastAPI, 설정, DB 세션, Alembic, Celery 워커, ruff, pytest | AI | ⬜ |
-| T0-5 | frontend 뼈대: Vite + React + TS + Tailwind, ESLint/Prettier | FE | ⬜ |
+| T0-4 | backend 뼈대: FastAPI, 설정(루트 `.env` 읽기), DB 세션, Alembic, Celery 워커, 공통 에러 핸들러, ruff, pytest | AI | ⬜ |
+| T0-5 | frontend 뼈대: Vite(`envDir: '..'`) + React + TS + Tailwind, ESLint/Prettier | FE | ⬜ |
 | T0-6 | 화면 흐름(와이어프레임): 체형 → 옷장 → 피팅 → 매칭 점수 | PM | ⬜ |
 | T0-7 | 샘플 데이터: 테스트용 옷 사진 30장, 샘플 상품 20개 (직접 촬영·제작, 크롤링 X) | PM | ⬜ |
 

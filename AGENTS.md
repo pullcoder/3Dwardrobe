@@ -1,67 +1,51 @@
-# AGENTS.md — AI 코딩 도구 공통 지시서
+# StyleFit AI — 공통 개발 지시서
 
-이 파일은 Codex 등 AI 코딩 에이전트가 이 저장소에서 작업할 때 따르는 **공통 규칙**입니다.
-Claude Code는 `CLAUDE.md`에서 이 파일을 그대로 불러오므로, 공통 규칙은 **여기 한 곳에서만** 고칩니다.
+사용자의 통합 개발 프롬프트 v2.0이 이전 CLOSET-VERSE 계획보다 우선한다.
+`PROJECT_PLAN.md`가 현재 범위 기준이며 과거 문서는 `docs/archive/`에 보존한다.
+현재 허용 범위는 **3단계 의류 분류·누끼·OCR·등록까지**다. 사용자 3단계 개발 프롬프트에 따라 인증·소유권·삭제 기반을 함께 구현하며, 보고 후 다음 지시를 기다린다. 4단계 의류 3D 생성·5단계 피팅은 착수하지 않는다.
 
-## 1. 프로젝트 한 줄 요약
+## 작업 전에
 
-CLOSET-VERSE: 사진으로 체형과 옷장을 디지털화하고, 새 옷과 내 옷을 함께 입혀 보며(크로스 피팅)
-AI가 매칭 점수(0~100, 70점 이상 = 어울림)·빈자리·사이즈를 추천하는 웹 서비스.
-**MVP(M+3)는 2.5D 레이어드 뷰어**, 3D 메시 아바타·360° 회전은 M+6부터. 현재 단계 범위는 `docs/TASKS.md`를 따른다.
+- 기획·단계: `PROJECT_PLAN.md`, `docs/TASKS.md`
+- 모델 도입: `AI_LICENSE_AUDIT.md`, `TECHNICAL_RISKS.md`
+- 개인정보·출시: `PRIVACY_DESIGN.md`, `PLAY_STORE_CHECKLIST.md`
+- 코드: `docs/ARCHITECTURE.md`, `docs/API.md`, `docs/CONVENTIONS.md`
+- 설치·협업: `docs/SETUP.md`, `docs/GIT_GUIDE.md`, `docs/DECISIONS.md`
+- 문서와 실제 코드가 다르면 먼저 사용자에게 알린다. 구현 상태를 과장하지 않는다.
 
-## 2. 작업 전에 읽을 문서
+## 스택·범위
 
-| 상황 | 먼저 읽을 문서 |
-|------|---------------|
-| 기능을 새로 만든다 | `docs/PLAN.md`, `docs/TASKS.md` |
-| 파일 위치·구조를 정한다 | `docs/ARCHITECTURE.md` |
-| API를 만들거나 호출한다 | `docs/API.md` |
-| 코드를 쓴다 (항상) | `docs/CONVENTIONS.md` |
-| 커밋·브랜치·PR | `docs/GIT_GUIDE.md` |
-| 설치·실행 | `docs/SETUP.md` |
-| "왜 이렇게 했지?" | `docs/DECISIONS.md` |
+React + TypeScript strict + Vite + Tailwind, FastAPI + Pydantic, PostgreSQL.
+현재 개발 환경은 Python 3.12 / Node 24. Three.js/R3F는 3D 단계, Android는 출시 준비 단계다.
+기기 내 MediaPipe를 우선 검토하고 서버 AI는 향후 Celery/Redis 워커로 분리한다.
+구체 라이브러리·모델의 임의 변경은 피한다. 사용자 요청이 이미 승인한 구성 작업은 진행하고 결정 기록을 남긴다.
 
-문서와 코드가 다르면 **코드를 문서에 맞추지 말고 먼저 사용자에게 알린다.**
+## 필수 규칙
 
-## 3. 기술 스택 (임의로 바꾸지 않기)
+1. 크롤링·외부 쇼핑몰 수집 금지. 사용자가 직접 업로드한 의류만 사용한다.
+2. 상업 이용이 허용된 코드·가중치·API만 도입. 버전과 라이선스·종속성·출력 조건을 감사한다.
+3. 미확인 모델과 SMPL 계열은 계약·조건 확인 전 설치하지 않는다. 라이선스 문서를 갱신한다.
+4. 사진·치수·3D는 기본 비공개, 학습 재사용 금지, 사진·신체 정보를 로그에 남기지 않는다.
+5. 저장 전 사진은 메모리 전용. 의류의 명시적 처리/저장 동의를 구분하고 로컬 CPU 추론과 인증된 비공개 DB 저장을 허용한다. 신체 사진은 계속 브라우저에서 처리한다.
+6. 추정치/직접 입력/확인된 값을 구분한다. 미연결 AI·3D·신고·저장은 준비 중으로 표시한다.
+7. 영구 저장·계정 기능을 열기 전 소유권·삭제·비공개 객체 접근을 구현한다.
+8. 비밀·사진·가중치·테스트 실행 산출물 커밋 금지. 새 설정은 `.env.example`에 설명한다.
+9. 문서·주석은 한국어, 식별자는 영어. 기능 변경 시 API·아키텍처 문서를 함께 갱신한다.
+10. main 직접 커밋·푸시 금지. 기능 브랜치에서 작업하고 PR로 통합한다.
+11. 요청 밖 대규모 변경, 테스트 삭제/skip으로 통과시키기, 확인 없는 강제 푸시·hard reset 금지.
 
-- Frontend: React + TypeScript (Vite), Tailwind CSS, 2.5D 레이어드 뷰어(MVP), Three.js + React Three Fiber(M+6)
-- Backend: Python 3.11, FastAPI, SQLAlchemy 2.x, Pydantic v2, Alembic
-- 비동기: Celery + Redis — AI 추론은 워커에서만 (API 라우터에서 모델 직접 호출 금지)
-- AI: MediaPipe Pose, 상업용 오픈소스 3D 인체 메시(MakeHuman 기반 등), RMBG/SAM + OpenCV, VLM, OCR
-- DB: PostgreSQL
+## 완료 전 확인
 
-새 라이브러리 추가, 스택 변경, 폴더 구조 변경은 **사용자 확인 후** 진행하고 `docs/DECISIONS.md`에 기록한다.
-
-## 4. 반드시 지킬 규칙
-
-1. **작은 단위로 작업한다.** 한 번에 한 기능·한 버그. 요청과 관계없는 파일은 고치지 않는다.
-2. **비밀 정보 금지.** API 키, 비밀번호, 토큰을 코드·문서·커밋에 넣지 않는다. `.env`만 사용하고, 새 변수는 `.env.example`에 빈 값으로 추가한다.
-3. **개인정보.** 얼굴·전신 원본 사진은 분석 직후 삭제가 기본값이다 (`DELETE_ORIGINAL_BODY_PHOTO=true`). 사진·체형 데이터를 로그에 남기지 않는다.
-4. **데이터 수집.** 웹 크롤링·스크래핑 코드를 절대 작성하지 않는다. 사용자 업로드 사진, 제휴몰 공식 오픈 API/데이터, B2B 파트너 업로드만 쓴다.
-5. **AI 모델 라이선스.** 새 모델·가중치를 추가할 때 상업적 이용 가능 여부를 확인하고 `docs/DECISIONS.md`에 적는다. **SMPL/SMPL-X는 비상업용이므로 코드·가중치를 넣지 않는다** (유료 라이선스 계약 전까지). 3D 인체 메시는 교체 가능한 인터페이스 뒤에 둔다. (D-010)
-6. **매칭 점수.** 0~100 정수, 임계값은 하드코딩하지 말고 설정(`MATCH_SCORE_THRESHOLD`, 기본 70)에서 읽는다. (D-012)
-7. **API를 바꾸면 `docs/API.md`도 같이 고친다.** DB 스키마를 바꾸면 Alembic 마이그레이션을 만들고 `docs/ARCHITECTURE.md`를 갱신한다.
-8. **main 브랜치에 직접 커밋·푸시하지 않는다.** `feature/...` 등 브랜치에서 작업한다. (`docs/GIT_GUIDE.md`)
-9. **주석과 문서는 한국어**, 코드 식별자(변수·함수·파일명)는 영어.
-
-## 5. 완료 전 확인 (Definition of Done)
-
-```bash
-# backend/
-ruff check . && ruff format --check . && pytest
-
-# frontend/
-npm run lint && npm run typecheck && npm run build
+```text
+backend: .venv/Scripts/python -m ruff check .
+backend: .venv/Scripts/python -m ruff format --check .
+backend: .venv/Scripts/python -m pytest
+frontend: npm run lint
+frontend: npm run typecheck
+frontend: npm run build
+frontend: npm test
+frontend: npm run test:e2e
 ```
 
-- 위 명령이 통과하지 못하면 "완료"라고 하지 말고 실패 내용을 그대로 보고한다.
-- 아직 해당 명령이 설정되지 않았다면, 실행하지 못했다고 명시한다.
-- 작업 끝에 **변경한 파일 목록과 이유**를 짧게 요약한다.
-
-## 6. 하지 말 것
-
-- `.env`, `storage/`, 모델 가중치(`*.pt`, `*.pkl`, `*.onnx`) 커밋
-- 테스트를 지우거나 건너뛰게(skip) 만들어 통과시키기
-- `git push --force`, `git reset --hard` 등 되돌리기 어려운 명령을 사용자 확인 없이 실행
-- 사용자가 요청하지 않은 대규모 리팩터링·포맷 변경
+macOS/Linux의 Python은 `.venv/bin/python`을 사용한다.
+미실행·실패·기술적 한계를 그대로 보고하며, 단계 종료 때 완료 기능·테스트·파일·모델/라이선스·미구현·개인정보·다음 계획을 보고한다.

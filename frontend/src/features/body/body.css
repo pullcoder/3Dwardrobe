@@ -1,0 +1,201 @@
+.body-steps {
+  display: flex;
+  gap: 18px;
+  list-style: decimal inside;
+  padding: 16px 20px;
+  margin: 0 0 20px;
+  border: 1px solid var(--border);
+  background: white;
+  border-radius: 8px;
+  font-size: 11px;
+  color: #81728f;
+  flex-wrap: wrap;
+}
+.body-mode {
+  max-width: 600px;
+}
+.photo-height {
+  margin-bottom: 20px;
+}
+.body-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(340px, 1fr);
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 25px;
+}
+.body-viewer {
+  position: sticky;
+  top: 20px;
+  min-width: 0;
+}
+.mannequin-viewport {
+  border: 1px solid #ddd2e8;
+  border-radius: 12px;
+  background: #eee9f3;
+  overflow: hidden;
+}
+.viewport-heading {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 18px 0;
+}
+.viewport-heading .eyebrow {
+  margin: 0;
+  font-size: 9px;
+}
+.canvas-wrap {
+  height: 530px;
+  width: 100%;
+  touch-action: none;
+}
+.view-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 12px;
+  flex-wrap: wrap;
+}
+.view-controls .button {
+  min-height: 38px;
+  padding: 8px 13px;
+}
+.mannequin-viewport > .helper {
+  padding: 0 15px 15px;
+  margin: 0;
+  text-align: center;
+}
+.body-source-note {
+  padding: 17px 4px;
+  font-size: 12px;
+  color: #776287;
+}
+.body-source-note > span {
+  float: right;
+  font-size: 10px;
+  color: #9a84ad;
+}
+.body-source-note p {
+  clear: both;
+  font-size: 11px;
+  line-height: 1.9;
+  margin-top: 10px;
+  color: #877591;
+}
+.body-editor .panel {
+  padding: 22px;
+}
+.body-editor .photo-picker {
+  height: 210px;
+  min-height: 210px;
+}
+.body-editor .photo-picker img {
+  max-height: 210px;
+}
+.body-editor .field small {
+  display: block;
+  margin-left: 0;
+  margin-top: 5px;
+  font-size: 9px;
+}
+.body-editor .action-row {
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.body-editor .button {
+  font-size: 11px;
+}
+.body-editor .button.secondary.danger {
+  margin-left: 8px;
+}
+.original-removal {
+  margin: 17px 0;
+}
+.pose-plot {
+  margin: 20px 0 0;
+  background: #f5f1f8;
+  border-radius: 8px;
+  padding: 12px;
+}
+.pose-plot svg {
+  width: 100%;
+  height: 240px;
+}
+.pose-plot figcaption {
+  font-size: 10px;
+  line-height: 1.8;
+  color: #8b749f;
+  margin-top: 9px;
+  text-align: center;
+}
+.studio-link {
+  margin-top: 20px;
+}
+.body-vault {
+  margin-top: 24px;
+}
+.body-vault .confirm-box {
+  margin-top: 18px;
+}
+.studio-canvas > .mannequin-viewport {
+  border: none;
+  border-radius: 0;
+}
+@media (max-width: 1100px) {
+  .body-workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(310px, 1fr);
+    gap: 18px;
+  }
+  .canvas-wrap {
+    height: 470px;
+  }
+  .viewport-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+@media (max-width: 760px) {
+  .body-workspace {
+    display: flex;
+    flex-direction: column;
+  }
+  .body-viewer {
+    position: static;
+    width: 100%;
+  }
+  .body-editor {
+    width: 100%;
+  }
+  .canvas-wrap {
+    height: 450px;
+  }
+  .viewport-heading {
+    flex-direction: row;
+  }
+  .body-steps {
+    gap: 10px;
+    font-size: 10px;
+  }
+  .body-editor .field small {
+    font-size: 10px;
+  }
+  .body-source-note > span {
+    float: none;
+    display: block;
+    margin-top: 8px;
+  }
+  .body-editor .button.secondary.danger {
+    margin: 8px 0 0;
+  }
+}
+@media (max-width: 380px) {
+  .viewport-heading {
+    flex-direction: column;
+  }
+  .canvas-wrap {
+    height: 400px;
+  }
+}

@@ -39,13 +39,17 @@
 | 한국어 | 코드 |
 |--------|------|
 | 체형 | `body_profile` |
-| 아바타 | `avatar` |
+| 뷰어용 체형 (2.5D 템플릿 / 3D 메시) | `avatar` (`kind`: `2_5d` / `mesh3d`) |
+| 2.5D 바디 템플릿 | `body_template` |
+| 의류 2.5D·3D 에셋 | `asset_2_5d` / `mesh_url` |
+| 제휴몰·B2B 브랜드 | `partner` |
 | 옷장 / 내 옷 | `closet` / `closet_item` |
 | 쇼핑몰 상품 | `product` |
 | 코디 | `outfit` |
 | 누끼 | `cutout` |
 | 크로스 피팅 | `fitting` |
-| 매칭 점수 | `match_score` |
+| 매칭 점수 (0~100 정수) | `match_score` |
+| 색상 팔레트 | `color_palette` |
 | 빈자리 추천 | `gap` |
 | 슬롯 (상의·하의·겉옷) | `slot`: `top` / `bottom` / `outer` |
 
@@ -78,7 +82,8 @@ export function ClosetItemCard({ item, onSelect }: ClosetItemCardProps) {
 - 요청 스키마 `XxxCreate`/`XxxUpdate`, 응답 스키마 `XxxRead`.
 - DB 변경은 반드시 Alembic 마이그레이션.
 - 에러는 `HTTPException` 대신 공통 예외 클래스(`AppError(code, message, status)`)로 던져 `API.md` 형식에 맞춘다.
-- AI 모델은 **앱 시작 시 1회 로드**(요청마다 로드 금지).
+- AI 모델은 **Celery 워커 시작 시 1회 로드**(요청마다 로드 금지). API 서버 프로세스에서는 무거운 모델을 로드하지 않는다.
+- Celery 작업 이름: `<도메인>.<동작>` (예: `closet.process_item`, `body.analyze`, `partner.build_asset`). 작업은 재시도해도 결과가 같게(멱등) 만든다.
 - 사진·체형 수치를 로그에 남기지 않는다. 로그에는 ID만.
 
 ```python

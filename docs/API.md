@@ -7,7 +7,7 @@
 
 - Base URL: `/api/v1`
 - 형식: JSON (`Content-Type: application/json`), 파일 업로드는 `multipart/form-data`
-- 인증: `Authorization: Bearer <access_token>` (🔒 표시 엔드포인트)
+- 인증: `Authorization: Bearer <access_token>` (🔒 표시 엔드포인트), B2B 파트너는 `X-API-Key: <key>` (🔑 표시)
 - 필드명: **snake_case** (프론트 타입도 그대로 사용)
 - 시간: ISO 8601 UTC (`2026-11-02T14:00:00Z`), 길이 단위: cm, 무게: kg
 - ID: UUID 문자열
@@ -30,7 +30,7 @@
 
 ### 비동기 작업 (Job)
 
-누끼·태깅·체형 분석처럼 오래 걸리는 요청은 `202 Accepted`와 함께 `job_id`를 돌려준다.
+누끼·태깅·체형 분석·에셋 생성처럼 오래 걸리는 요청은 Celery 큐에 작업을 넣고 `202 Accepted`와 함께 `job_id`를 돌려준다.
 
 ```json
 { "job_id": "8f1c…", "status": "pending" }
@@ -66,8 +66,8 @@ POST /api/v1/auth/login
 | GET 🔒 | `/body/profile` | 내 체형 조회 |
 | PUT 🔒 | `/body/profile` | 치수 직접 입력/보정 (사진 없이도 가능) |
 | DELETE 🔒 | `/body/profile` | 체형 데이터 삭제 |
-| POST 🔒 | `/body/avatar` | 현재 체형으로 아바타 생성 (Job) |
-| GET 🔒 | `/body/avatar` | 아바타 정보 (kind, mesh_url 등) |
+| POST 🔒 | `/body/avatar` | 현재 체형으로 뷰어용 체형 생성 (Job) — MVP: 2.5D 템플릿, M+6: 3D 메시 |
+| GET 🔒 | `/body/avatar` | 뷰어용 체형 정보 (`kind`: `2_5d` \| `mesh3d`, `asset_url` 등) |
 
 ```http
 POST /api/v1/body/analyze      (multipart/form-data)
@@ -81,7 +81,9 @@ Job 완료 시 `result`:
 ```json
 {
   "estimated": { "shoulder_cm": 44.1, "arm_cm": 58.3, "leg_cm": 81.0 },
+  "proportions": { "shoulder_ratio": 0.26, "leg_ratio": 0.47 },
   "confidence": 0.82,
+  "is_estimate": true,
   "original_photo_deleted": true
 }
 ```
@@ -99,12 +101,12 @@ PUT /api/v1/body/profile
 
 | Method | Path | 설명 |
 |--------|------|------|
-| POST 🔒 | `/closet/items` | 옷 사진 업로드 → 누끼 + 태깅 (Job) |
+| POST 🔒 | `/closet/items` | 옷 사진(+ 선택: 사이즈표 사진) 업로드 → 누끼 + VLM 태깅 + OCR + 2.5D 에셋 (Job) |
 | GET 🔒 | `/closet/items` | 목록 (`?category=top&color=white&page=1&size=20`) |
 | GET 🔒 | `/closet/items/{item_id}` | 상세 |
 | PATCH 🔒 | `/closet/items/{item_id}` | 태그·사이즈 수정 |
 | DELETE 🔒 | `/closet/items/{item_id}` | 삭제 |
-| POST 🔒 | `/closet/items/{item_id}/size-label` | 사이즈표 사진 OCR (Job) |
+| POST 🔒 | `/closet/items/{item_id}/size-label` | 사이즈표·소재표 사진 추가 OCR (Job) |
 
 옷 아이템 응답 예시:
 ```json
@@ -112,18 +114,21 @@ PUT /api/v1/body/profile
   "id": "…",
   "category": "top",
   "subcategory": "knit",
-  "colors": ["ivory"],
+  "color_palette": [ { "hex": "#EFE6D8", "ratio": 0.85, "tone": "warm_light" } ],
   "pattern": "solid",
   "material": "wool",
+  "style_tags": ["minimal", "casual"],
   "cutout_url": "/files/cutouts/….png",
+  "asset_2_5d": { "texture_url": "/files/assets/….png", "anchors": { "shoulder_l": [0.12, 0.05], "shoulder_r": [0.88, 0.05], "hem": [0.5, 0.98] } },
+  "mesh_url": null,
   "size_info": { "label": "M", "chest_cm": 54, "length_cm": 68 },
   "tags_confirmed": false,
   "created_at": "2026-11-02T14:00:00Z"
 }
 ```
 
-`category` 값: `top` | `bottom` | `outer` | `dress` | `shoes` | `bag` | `accessory`
-(MVP는 `top`, `bottom`, `outer`만 피팅 지원)
+`category` 값: `top` | `bottom` | `outer` | `dress` | `shoes` | `accessory`
+(MVP는 `top`, `bottom`, `outer`만 피팅 지원. 신발·액세서리·헤어는 M+12)
 
 ## 4. 코디 `outfits`
 
@@ -152,33 +157,35 @@ PUT /api/v1/body/profile
 | GET | `/products` | 상품 목록 (`?category=&q=&page=`) |
 | GET | `/products/{product_id}` | 상품 상세 (사이즈표 포함) |
 
-MVP는 시드 데이터. 제휴몰 연동 시 출처(`partner_id`)와 `product_url`(제휴 링크) 포함.
+MVP는 팀이 만든 샘플 상품. 이후 제휴몰 **공식 오픈 API/데이터**와 B2B 업로드(아래 9번)로만 채운다 (크롤링 금지). 응답에 출처(`partner_id`), `product_url`(제휴 링크), `asset_2_5d`, `size_chart` 포함.
 
 ## 6. 피팅 `fitting`
 
 | Method | Path | 설명 |
 |--------|------|------|
-| POST 🔒 | `/fitting/preview` | 아바타 + 슬롯별 아이템 → 렌더링 정보 |
+| POST 🔒 | `/fitting/preview` | 뷰어용 체형 + 슬롯별 아이템 → 레이어 렌더링 정보 |
 
 ```json
 // 요청
 { "items": [ { "slot": "top", "product_id": "…" }, { "slot": "bottom", "closet_item_id": "…" } ] }
 
-// 응답 (MVP 2.5D)
+// 응답 (MVP: 2.5D 스키닝 레이어드 뷰어)
 {
-  "avatar": { "kind": "2_5d", "proportions": { "shoulder_ratio": 0.26, "leg_ratio": 0.47 } },
+  "avatar": { "kind": "2_5d", "template_id": "slim_m_02", "proportions": { "shoulder_ratio": 0.26, "leg_ratio": 0.47 } },
   "layers": [
-    { "slot": "bottom", "texture_url": "…", "z": 1, "anchor": "waist" },
-    { "slot": "top",    "texture_url": "…", "z": 2, "anchor": "shoulder" }
+    { "slot": "bottom", "layer": 1, "asset_2_5d": { "texture_url": "…", "anchors": { … } } },
+    { "slot": "top",    "layer": 2, "asset_2_5d": { "texture_url": "…", "anchors": { … } } },
+    { "slot": "outer",  "layer": 3, "asset_2_5d": { "texture_url": "…", "anchors": { … } } }
   ]
 }
+// M+6: avatar.kind = "mesh3d", 각 layer에 mesh_url 추가
 ```
 
 ## 7. 추천 `recommend`
 
 | Method | Path | 설명 |
 |--------|------|------|
-| GET 🔒 | `/recommend/match-score?product_id=…` | 옷장 매칭 점수 |
+| GET 🔒 | `/recommend/match-score?product_id=…` | 옷장 매칭 점수 (0~100, 70점 이상 벌 수) |
 | GET 🔒 | `/recommend/gaps` | 빈자리 추천 (P1) |
 | GET 🔒 | `/recommend/size?product_id=…` | 사이즈 추천 (P1) |
 | GET 🔒 | `/recommend/outfits?product_id=…` | 코디 추천 + 이유 (P1) |
@@ -187,9 +194,18 @@ MVP는 시드 데이터. 제휴몰 연동 시 출처(`partner_id`)와 `product_u
 // match-score 응답
 {
   "product_id": "…",
+  "threshold": 70,
   "match_count": 7,
-  "message": "이 옷은 당신 옷장의 7벌과 어울립니다",
-  "matches": [ { "closet_item_id": "…", "score": 0.91, "reason": "톤온톤 베이지 조합" } ]
+  "best_score": 91,
+  "message": "옷장 속 7벌과 70점 이상으로 어울립니다",
+  "matches": [
+    {
+      "closet_item_id": "…",
+      "score": 91,
+      "breakdown": { "color_harmony": 38, "style": 30, "similarity": 23 },
+      "reason": "톤온톤 베이지 조합"
+    }
+  ]
 }
 
 // size 응답
@@ -211,6 +227,31 @@ MVP는 시드 데이터. 제휴몰 연동 시 출처(`partner_id`)와 `product_u
 
 `status`: `pending` → `running` → `done` | `failed`
 
+`type` 예: `body_analyze`, `avatar_build`, `closet_item_process`, `size_label_ocr`, `partner_asset_build`
+
+## 9. B2B 파트너 `partner` (P1 파일럿 → P2 정식)
+
+브랜드가 2D 이미지와 사이즈표만 올리면 의류 파이프라인과 **같은 코드**로 2.5D/3D 에셋과 치수 매핑을 자동 생성한다.
+
+| Method | Path | 설명 |
+|--------|------|------|
+| POST 🔑 | `/partner/products` | 상품 이미지 + 사이즈표 + 메타데이터 업로드 → 에셋 생성 (Job) |
+| GET 🔑 | `/partner/products` | 내가 올린 상품 목록 |
+| GET 🔑 | `/partner/products/{product_id}` | 상품·에셋 상태 |
+| DELETE 🔑 | `/partner/products/{product_id}` | 삭제 |
+| GET 🔑 | `/partner/jobs/{job_id}` | 작업 상태 |
+
+```http
+POST /api/v1/partner/products     (multipart/form-data)
+X-API-Key: …
+image=<file>  size_chart=<file>  external_id=SKU-1234  name=오버핏 니트  price=59000  product_url=https://…
+
+202 Accepted
+{ "job_id": "…", "product_id": "…", "status": "pending" }
+```
+
+위젯(P2)은 이 API로 만든 에셋과 사용자 옷장을 연결해 "내 옷과 입어보기"를 보여준다. 위젯 전용 API는 P2에서 설계.
+
 ---
 
 ## 변경 이력
@@ -218,3 +259,4 @@ MVP는 시드 데이터. 제휴몰 연동 시 출처(`partner_id`)와 `product_u
 | 날짜 | 변경 | 작성자 |
 |------|------|--------|
 | 2026-11-02 | 초안 작성 | |
+| 2026-11-02 | 최종 사업계획서 반영: 2.5D/mesh3d 구분, 매칭 점수 0~100·임계값 70, color_palette·style_tags, B2B partner API | |

@@ -35,10 +35,12 @@ cp .env.example .env          # Windows PowerShell: copy .env.example .env
 `.env`에서 최소한 다음을 채웁니다: `POSTGRES_PASSWORD`, `DATABASE_URL`의 비밀번호, `JWT_SECRET`.
 AI 관련 키(`VLM_API_KEY`, `OCR_API_KEY`)는 팀 비공개 채널에서 받습니다. **채팅·이슈·커밋에 키를 붙여넣지 마세요.**
 
-## 4. 데이터베이스 (PostgreSQL)
+## 4. 데이터베이스 (PostgreSQL) + Redis
+
+Redis는 Celery 작업 큐(AI 비동기 추론)에 쓰입니다.
 
 ```bash
-docker compose up -d db       # 실행
+docker compose up -d db redis # 실행
 docker compose ps             # 상태 확인
 docker compose down           # 종료 (데이터는 볼륨에 유지)
 ```
@@ -59,13 +61,23 @@ alembic upgrade head           # DB 테이블 생성
 uvicorn app.main:app --reload
 ```
 
+AI 작업은 별도 워커가 처리합니다. **새 터미널**에서 (backend 폴더, 가상환경 켠 상태):
+
+```bash
+celery -A app.workers.celery_app worker --loglevel=info --pool=solo
+```
+
+- `--pool=solo`: Windows에서 Celery 기본 실행 방식이 동작하지 않아 필요합니다. macOS/Linux는 빼도 됩니다.
+- 워커를 켜지 않으면 업로드 후 작업이 계속 `pending`으로 남습니다.
+
 - API 문서: http://localhost:8000/docs
 - PowerShell에서 `activate`가 막히면: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
 
 ### AI 모델 가중치
 
 - 가중치는 Git에 올리지 않습니다. `backend/models/weights/`에 둡니다.
-- **SMPL**: https://smpl.is.tue.mpg.de 에서 각자 회원가입·라이선스 동의 후 다운로드 → `backend/models/weights/smpl/` (M+6 단계부터 필요)
+- **3D 인체 메시 (M+6부터)**: 상업 이용이 허용된 오픈소스 메시(MakeHuman 기반 등)를 사용합니다. 받는 방법은 T2-1 결정 후 여기에 추가합니다.
+- **SMPL/SMPL-X는 비상업용 라이선스**라 개인 실험용으로도 이 저장소에 넣지 않습니다. (`DECISIONS.md` D-010)
 - MediaPipe, RMBG 등은 첫 실행 시 자동 다운로드되거나 설치 스크립트로 받습니다. (방법이 정해지면 여기 추가)
 
 ## 6. 프론트엔드 (React)
@@ -101,6 +113,7 @@ npm run dev                    # http://localhost:5173
 | 증상 | 해결 |
 |------|------|
 | `pip install mediapipe` 실패 | Python 버전 확인 (3.11 권장). 3.13 이상이면 휠이 없을 수 있음 |
+| 작업이 계속 `pending` | Celery 워커가 켜져 있는지, Redis가 실행 중인지(`docker compose ps`) 확인 |
 | `port 5432 already in use` | 로컬에 설치된 PostgreSQL 종료하거나 `.env`/compose 포트 변경 |
 | `npm install` 권한 에러 | 관리자 권한 터미널 X, 프로젝트 폴더를 OneDrive 밖으로 옮겨보기 |
 | (추가해 주세요) | |

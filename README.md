@@ -13,19 +13,20 @@
 
 | # | 기능 | 한 줄 설명 |
 |---|------|-----------|
-| ① | 체형 분석 · 3D 아바타 | 전신 사진 + 키 입력 → MediaPipe 분석 → 치수 보정 → SMPL 아바타 |
-| ② | 디지털 옷장 | 옷 사진 → 누끼 → AI 태깅(종류·색·무늬·소재) + OCR 사이즈 |
-| ③ | 크로스 피팅 | 쇼핑몰 신상품 + 내 옷을 아바타에 함께 입혀 360° 확인 |
-| ④ | AI 추천 | "옷장의 7벌과 어울립니다" 매칭 점수, 빈자리 추천, 사이즈 추천 |
+| ① | 체형 분석 | 전신 사진 또는 수치 → MediaPipe 분석 → 수동 보정 → 2.5D 템플릿(MVP) / 3D 메시 아바타(M+6) |
+| ② | 디지털 옷장 | 옷 사진 → 누끼 → VLM 태깅(카테고리·색상 팔레트·소재·패턴·스타일) + OCR 사이즈표 |
+| ③ | 크로스 피팅 | 쇼핑몰 상품 + 내 옷을 겹쳐 입히기: 2.5D 레이어드 뷰어(MVP) → 3D 360° 회전(M+6) |
+| ④ | AI 추천 | 매칭 점수 0~100, "옷장 속 7벌과 70점 이상으로 어울립니다" + 빈자리·사이즈 추천 |
+| B2B | 자동 에셋 변환 | 브랜드가 이미지 + 사이즈표만 올리면 2.5D/3D 에셋과 치수 매핑 자동 생성 (위젯·API) |
 
 자세한 기획은 [docs/PLAN.md](docs/PLAN.md)를 보세요.
 
 ## 기술 스택
 
 - **Frontend**: React + TypeScript, Vite, Tailwind CSS
-- **3D**: Three.js, React Three Fiber (`@react-three/fiber`, `@react-three/drei`)
-- **Backend**: Python 3.11, FastAPI
-- **AI**: MediaPipe Pose, SMPL 계열 모델, RMBG / SAM + OpenCV, VLM(의류 태깅), OCR
+- **피팅 뷰어**: 2.5D 스키닝 레이어드 뷰어(MVP), Three.js + React Three Fiber 3D 뷰어(M+6)
+- **Backend**: Python 3.11, FastAPI, Celery + Redis (비동기 AI 추론)
+- **AI**: MediaPipe Pose, 상업용 오픈소스 3D 인체 메시(MakeHuman 기반 등), RMBG / SAM + OpenCV, VLM, OCR
 - **Data**: PostgreSQL, 로컬/오브젝트 스토리지(이미지·3D 파일)
 
 ## 폴더 구조 (요약)
@@ -33,7 +34,7 @@
 ```
 3Dwardrobe/
 ├── frontend/        # React 웹 앱
-├── backend/         # FastAPI 서버 + AI 파이프라인
+├── backend/         # FastAPI 서버 + Celery 워커 + AI 파이프라인
 ├── docs/            # 기획·설계·규칙 문서
 ├── AGENTS.md        # AI 코딩 도구 공통 지시서 (Codex 등)
 ├── CLAUDE.md        # Claude Code 지시서 (AGENTS.md를 불러옴)
@@ -51,8 +52,8 @@
 # 0) 환경변수
 cp .env.example .env            # Windows PowerShell: copy .env.example .env
 
-# 1) DB (Docker)
-docker compose up -d db
+# 1) DB + Redis (Docker)
+docker compose up -d db redis
 
 # 2) 백엔드
 cd backend
@@ -60,6 +61,9 @@ python -m venv .venv
 .venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload   # http://localhost:8000/docs
+
+# 2-1) AI 워커 (새 터미널, backend 폴더, 가상환경 켠 상태)
+celery -A app.workers.celery_app worker --loglevel=info --pool=solo   # --pool=solo는 Windows용
 
 # 3) 프론트엔드 (새 터미널)
 cd frontend

@@ -5,7 +5,7 @@
 ## 1. 공통
 
 - **언어**: 코드 식별자는 영어, 주석·문서·커밋 메시지 본문은 한국어.
-- **인코딩/줄바꿈**: UTF-8, LF (Windows는 `git config core.autocrlf true` 또는 `.gitattributes` 사용 — `GIT_GUIDE.md` 참고)
+- **인코딩/줄바꿈**: UTF-8, LF. 저장소의 `.gitattributes`가 OS와 상관없이 LF로 맞춰준다.
 - **들여쓰기**: Python 4칸, TS/TSX·JSON·CSS 2칸
 - **한 함수는 한 가지 일**. 50줄이 넘어가면 나눌 수 있는지 본다.
 - **매직 넘버 금지**: 의미 있는 상수로 뺀다. (`MAX_UPLOAD_MB = 10`)
@@ -30,6 +30,7 @@
 | DB 컬럼 | snake_case, 단위 접미사 | `height_cm`, `weight_kg` |
 | API 경로 | kebab-case, 복수형 명사 | `/closet/items`, `/recommend/match-score` |
 | JSON 필드 | snake_case | `cutout_url` |
+| TS의 API 응답 타입 필드 | snake_case 그대로 (변환하지 않음) | `item.cutout_url` |
 | 환경변수 | UPPER_SNAKE | `DATABASE_URL` |
 | 불리언 | is/has/can 접두사 | `is_confirmed`, `hasAvatar` |
 

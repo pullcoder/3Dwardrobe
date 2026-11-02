@@ -37,9 +37,11 @@ htmlcov/
 *.egg-info/
 
 # ===== 업로드 / 생성 파일 =====
-storage/
-uploads/
-media/
+# 루트 기준(/)으로 고정: backend/app/storage/ 같은 소스 폴더가 무시되지 않게
+/storage/
+/backend/storage/
+/uploads/
+/media/
 *.log
 
 # ===== AI 모델 가중치 (용량·라이선스 문제로 커밋 금지) =====

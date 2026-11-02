@@ -1,6 +1,6 @@
 # GIT_GUIDE — Git 사용법 · 협업 흐름
 
-> 기존 `git.md`를 바탕으로 정리한 개선판입니다.
+> 처음 팀에서 쓰던 Git 메모(`git.md`)를 바탕으로 정리한 개선판입니다. (`git.md`는 삭제하고 이 문서로 대체)
 > 핵심 원칙은 그대로: **main은 항상 최신·안정 상태, 작업은 무조건 브랜치에서.**
 > 바뀐 점: main에 직접 merge 대신 **PR(Pull Request)로 합치기**, 커밋 메시지 규칙, 충돌 해결, 자주 하는 실수 대처 추가.
 
@@ -17,8 +17,7 @@ cd 3Dwardrobe
 git config user.name "이름"
 git config user.email "GitHub에 등록한 메일"
 
-# Windows 사용자: 줄바꿈 자동 변환 (Mac/Linux와 섞여도 diff가 깨지지 않게)
-git config core.autocrlf true
+# 줄바꿈(LF/CRLF)은 저장소의 .gitattributes가 자동으로 맞춰줍니다. 따로 설정할 필요 없음.
 
 # 기본 브랜치 확인 → main 이어야 함
 git branch -a
@@ -121,13 +120,14 @@ git push
 
 ## 5. 충돌(Conflict) 해결
 
-text
-<<<<<< HEAD
-내 브랜치 코드
-=======
-main 쪽 코드
->>>>>> main
+```text
+  <<<<<<< HEAD
+  내 브랜치 코드
+  =======
+  main 쪽 코드
+  >>>>>>> main
 ```
+(실제 파일에서는 표시가 줄 맨 앞에 붙어 나옵니다. 이 문서에서는 에디터가 진짜 충돌로 착각하지 않도록 두 칸 들여 썼어요.)
 
 1. VS Code에서 파일 열기 → "Accept Current / Incoming / Both" 중 선택하거나 직접 수정
 2. `<<<<<<<`, `=======`, `>>>>>>>` 표시를 모두 지운다
@@ -161,7 +161,7 @@ git pull origin main
 git branch -d feature/closet-upload
 ```
 
-> 급하게 로컬에서 직접 merge해야 할 때(기존 git.md 방식)는 팀에 먼저 알리고 진행합니다.
+> 급하게 로컬에서 직접 merge해야 할 때(예전 git.md 방식)는 팀에 먼저 알리고 진행합니다.
 > ```bash
 > git checkout main && git pull origin main
 > git merge feature/브랜치이름

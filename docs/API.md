@@ -80,7 +80,7 @@ photo=<file>  height_cm=175
 Job 완료 시 `result`:
 ```json
 {
-  "estimated": { "shoulder_cm": 44.1, "arm_cm": 58.3, "leg_cm": 81.0, "torso_cm": 52.4 },
+  "estimated": { "shoulder_cm": 44.1, "arm_cm": 58.3, "leg_cm": 81.0 },
   "confidence": 0.82,
   "original_photo_deleted": true
 }

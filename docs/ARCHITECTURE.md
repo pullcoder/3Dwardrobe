@@ -87,7 +87,7 @@
     │   ├── db/                # 세션, Base
     │   ├── models/            # SQLAlchemy 모델 (테이블)
     │   ├── schemas/           # Pydantic 요청/응답 스키마
-    │   ├── api/v1/            # 라우터 (auth, body, closet, fitting, products, recommend, jobs)
+    │   ├── api/v1/            # 라우터 (auth, users, body, closet, outfits, products, fitting, recommend, jobs)
     │   ├── services/          # 비즈니스 로직 (라우터는 얇게, 로직은 여기)
     │   ├── ai/                # AI 파이프라인 모듈
     │   │   ├── segmentation.py   # RMBG / SAM 누끼
@@ -110,8 +110,8 @@
 | `users` | id, email, password_hash, preferred_styles[], created_at | 회원 |
 | `body_profiles` | id, user_id, height_cm, weight_kg, chest_cm, waist_cm, hip_cm, shoulder_cm, arm_cm, leg_cm, source(photo/manual), landmarks(jsonb), updated_at | 체형 (사용자당 1개) |
 | `avatars` | id, body_profile_id, kind(2_5d/smpl), smpl_params(jsonb), mesh_url | 아바타 |
-| `closet_items` | id, user_id, category, colors[], pattern, material, image_url, cutout_url, size_info(jsonb), tags_confirmed, created_at | 내 옷 |
-| `products` | id, partner_id, name, brand, price, category, colors[], image_url, cutout_url, size_chart(jsonb), product_url | 쇼핑몰 상품 |
+| `closet_items` | id, user_id, category, subcategory, colors[], pattern, material, image_url, cutout_url, size_info(jsonb), tags_confirmed, created_at | 내 옷 |
+| `products` | id, partner_id, name, brand, price, category, subcategory, colors[], image_url, cutout_url, size_chart(jsonb), product_url | 쇼핑몰 상품 |
 | `outfits` | id, user_id, name, created_at | 저장한 코디 |
 | `outfit_items` | outfit_id, slot(top/bottom/outer/…), closet_item_id 또는 product_id | 코디 구성 |
 | `jobs` | id, user_id, type, status(pending/running/done/failed), result(jsonb), error, created_at | 비동기 AI 작업 |

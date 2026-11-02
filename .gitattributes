@@ -1,0 +1,22 @@
+# 줄바꿈 통일: 저장소와 작업 폴더 모두 LF (Windows/Mac 혼용 시 diff 깨짐 방지)
+* text=auto eol=lf
+
+# Windows 전용 스크립트는 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 바이너리 (변환·diff 하지 않음)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.glb binary
+*.gltf -text
+*.fbx binary
+*.obj -text
+*.pdf binary
+*.woff binary
+*.woff2 binary

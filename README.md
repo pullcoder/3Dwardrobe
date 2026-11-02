@@ -45,6 +45,7 @@
 ## 빠른 실행
 
 > 처음이라면 [docs/SETUP.md](docs/SETUP.md)부터 따라 하세요.
+> ⚠️ 아직 코드 뼈대가 없어서 아래 명령은 `docker-compose.yml`, `backend/`, `frontend/`가 추가된 뒤(TASKS T0-3~T0-5)부터 동작합니다.
 
 ```bash
 # 0) 환경변수
@@ -81,8 +82,4 @@ npm run dev                     # http://localhost:5173
 
 ## 팀
 
-| 이름 | 역할 | GitHub |
-|------|------|--------|
-| (이름) | (역할) | @ |
-| (이름) | (역할) | @ |
-| (이름) | (역할) | @ |
+팀원과 역할은 [docs/TASKS.md](docs/TASKS.md#팀-역할)에서 관리합니다.

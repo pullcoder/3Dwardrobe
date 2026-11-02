@@ -88,7 +88,7 @@ git push -u origin feature/closet-upload   # 처음 한 번만 -u, 이후엔 git
 | `test` | 테스트 |
 | `chore` | 설정·패키지 |
 
-범위 예시: `body`, `closet`, `fitting`, `recommend`, `auth`, `frontend`, `backend`, `db`
+범위 예시: `body`, `closet`, `fitting`, `recommend`, `partner`, `auth`, `worker`, `frontend`, `backend`, `db`, `docs`
 
 ```bash
 # 좋은 예

@@ -10,12 +10,13 @@
 | Git | 최신 | `git --version` | |
 | Node.js | 20 LTS 이상 | `node -v` | npm 포함 |
 | Python | **3.11** | `python --version` | MediaPipe 호환 때문에 3.11 권장 |
-| Docker Desktop | 최신 | `docker --version` | PostgreSQL 실행용 |
+| Docker Desktop | 최신 | `docker --version` | PostgreSQL + Redis 실행용 |
 | VS Code | 최신 | | 권장 에디터 |
 
 **VS Code 추천 확장**: Python, Pylance, Ruff, ESLint, Prettier, Tailwind CSS IntelliSense, GitLens
 
 > Docker를 못 쓰면 PostgreSQL 16을 직접 설치해도 됩니다. 이 경우 `.env`의 접속 정보만 맞추면 됩니다.
+> Redis는 Windows용 공식 설치판이 없어서, Docker를 못 쓰면 WSL에 설치하거나 Memurai 같은 호환 프로그램을 써야 합니다. 가능하면 Docker를 권장합니다.
 
 ## 2. 저장소 받기
 
@@ -31,6 +32,8 @@ git config user.email "메일"
 ```bash
 cp .env.example .env          # Windows PowerShell: copy .env.example .env
 ```
+
+`.env`는 **저장소 루트에 하나만** 둡니다. 백엔드는 설정 코드에서, 프론트는 `vite.config.ts`의 `envDir: '..'`로 루트 `.env`를 읽습니다 (T0-4, T0-5에서 설정).
 
 `.env`에서 최소한 다음을 채웁니다: `POSTGRES_PASSWORD`, `DATABASE_URL`의 비밀번호, `JWT_SECRET`.
 AI 관련 키(`VLM_API_KEY`, `OCR_API_KEY`)는 팀 비공개 채널에서 받습니다. **채팅·이슈·커밋에 키를 붙여넣지 마세요.**
@@ -61,6 +64,9 @@ alembic upgrade head           # DB 테이블 생성
 uvicorn app.main:app --reload
 ```
 
+- API 문서: http://localhost:8000/docs
+- PowerShell에서 `activate`가 막히면: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+
 AI 작업은 별도 워커가 처리합니다. **새 터미널**에서 (backend 폴더, 가상환경 켠 상태):
 
 ```bash
@@ -69,9 +75,6 @@ celery -A app.workers.celery_app worker --loglevel=info --pool=solo
 
 - `--pool=solo`: Windows에서 Celery 기본 실행 방식이 동작하지 않아 필요합니다. macOS/Linux는 빼도 됩니다.
 - 워커를 켜지 않으면 업로드 후 작업이 계속 `pending`으로 남습니다.
-
-- API 문서: http://localhost:8000/docs
-- PowerShell에서 `activate`가 막히면: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
 
 ### AI 모델 가중치
 

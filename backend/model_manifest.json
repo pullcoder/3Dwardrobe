@@ -1,0 +1,6 @@
+[
+  {"file":"models/weights/open_clip_model.safetensors","sha256":"ac4f8c4b88af6d963118cbf40ad93176d092abbedfcb752601ae1866352656e6","url":"https://huggingface.co/laion/CLIP-ViT-B-32-laion2B-s34B-b79K/resolve/1a25a446712ba5ee05982a381eed697ef9b435cf/open_clip_model.safetensors"},
+  {"file":"models/weights/sam_vit_b_01ec64.pth","sha256":"ec2df62732614e57411cdcf32a23ffdf28910380d03139ee0f4fcbe91eb8c912","url":"https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth"},
+  {"file":"ocr/models/kor.traineddata","sha256":"6b85e11d9bbf07863b97b3523b1b112844c43e713df8b66418a081fd1060b3b2","url":"https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/kor.traineddata"},
+  {"file":"ocr/models/eng.traineddata","sha256":"7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2","url":"https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata"}
+]

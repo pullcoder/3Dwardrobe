@@ -1,0 +1,53 @@
+# ===== 환경변수 / 비밀 =====
+.env
+.env.*
+!.env.example
+
+# ===== OS / 에디터 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+
+# ===== Node (frontend) =====
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ===== Python (backend) =====
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# ===== 업로드 / 생성 파일 =====
+storage/
+uploads/
+media/
+*.log
+
+# ===== AI 모델 가중치 (용량·라이선스 문제로 커밋 금지) =====
+models/weights/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.pkl
+*.safetensors
+*.npz

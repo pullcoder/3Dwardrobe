@@ -289,6 +289,23 @@ export async function confirmPhotoRights(token: string, id: string) {
     body: "{}",
   });
 }
+export async function analyzeGarmentSilhouette(
+  token: string,
+  id: string,
+  file: File,
+): Promise<{ generation: GenerationState; revision: number }> {
+  return (
+    await request(`/garments/${id}/silhouette`, token, {
+      method: "POST",
+      body: file,
+      headers: {
+        "Content-Type": file.type,
+        "X-Upload-Rights": "confirmed",
+        "X-Image-Processing-Consent": "confirmed",
+      },
+    })
+  ).json();
+}
 export async function withdrawRights(token: string, id: string) {
   await request(`/garments/${id}/rights-withdraw`, token, {
     method: "POST",

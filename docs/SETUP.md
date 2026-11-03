@@ -15,7 +15,8 @@ cd ocr
 npm ci
 cd ..
 .venv/Scripts/python scripts/prepare_models.py
-.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log
+.venv/Scripts/python -m alembic upgrade head
+.venv/Scripts/python -m app.local_dev
 ```
 
 가상환경 활성화 없이 실행하므로 PowerShell 실행 정책을 변경할 필요가 없다.
@@ -101,3 +102,49 @@ Worker CSP: `default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-s
 - 실제 AI 독립 검증: `backend/`에서 `.venv/Scripts/python scripts/verify_garment_ai.py`. 테스트 이미지는 Git 제외 fixture 폴더에만 생성한다.
 - 의류 CPU 분석 동시 1건, 추가 요청 429. 브라우저에서 재시도할 수 있으며 서버 큐·작업 영속화는 없다. Playwright는 실제 AI 경합을 피하려고 worker 1개로 실행한다.
 - SQLite DB·가중치·언어 데이터·node_modules·fixture·테스트 결과는 커밋하지 않는다. `ADMIN_REVIEW_KEY`는 관리자 신고 검토 API용 서버 비밀값이다. 프론트 환경변수로 넣지 않는다.
+
+## 6단계 업데이트 시
+
+기존 DB를 백업한 뒤 API를 중지하고 backend에서 `.venv/Scripts/python -m alembic upgrade head`를 실행한다(Linux/macOS는 `.venv/bin/python`). 신규 revision은 e61f3b8c1004다. 사용자 DB를 삭제해서 초기화하지 않는다. 이번 작업의 자동 테스트는 별도 SQLite DB만 사용한다. PostgreSQL 운영 마이그레이션은 별도 검증이 필요하다.
+
+새 환경변수·외부 추천 API 키·모델 다운로드는 필요하지 않다. 기존 백엔드/프론트엔드를 실행하고 계정 로그인 → 의류 상의/하의 저장 → AI 코디 추천에서 취향 선택/실행한다. GLB가 없으면 이미지 조합만 제공한다. 기존 3D 입어보기를 사용하려면 별도 생성 워커를 실행하고 옷장에서 실제 A 모드 GLB를 준비한다.
+
+## GLB 생성 복구 후 권장 실행
+
+API만 실행하면 3D 요청은 DB의 queued 상태에 남으며 실제 생성은 진행하지 않는다. 로컬에서는 backend에서 아래 명령으로 API와 CPU 생성 워커를 함께 실행한다. 두 프로세스에 같은 DATABASE_URL과 Python 환경이 전달된다. 한 프로세스가 종료되면 다른 프로세스도 정리한다.
+
+```powershell
+# 기존 DB는 백업 후 새 migration f71a4c9d1105까지 적용
+.venv/Scripts/python -m alembic upgrade head
+.venv/Scripts/python -m app.local_dev
+```
+
+테이블이 없는 새 DB만 `python -m app.local_dev --initialize-empty`로 초기화할 수 있다. 기존 DB를 자동 변경하거나 stamp하지 않는다. 기존 3단계 무버전 DB는 위 스키마 비교/stamp 절차를 먼저 따른다. 프론트엔드는 별도 터미널에서 `npm run dev`를 실행한다. 독립 API/워커 명령도 유지하지만 DATABASE_URL이 반드시 같아야 한다.
+
+현재 사용자 사이트는 원본 `storage/stylefit.db`를 보존하고 `storage/stylefit-site-preview.db` 사본을 사용한다. 재실행 시 두 프로세스의 설정이 어긋나지 않도록 아래처럼 지정한다.
+
+```powershell
+$env:DATABASE_URL='sqlite:///storage/stylefit-site-preview.db'
+.venv/Scripts/python -m app.local_dev
+```
+
+생성 화면의 워커 응답 없음 안내는 같은 DB의 heartbeat(15초 유효 기간)를 사용한다. 요청은 영속 대기열에 남고 워커 재연결 시 처리된다. 완료 전까지 생성 성공으로 표시하지 않는다. 실패 단계/예외 유형은 노출하되 원래 예외 메시지·SQL 매개변수·사진·치수·DB 주소는 기록하지 않는다.
+
+## 바지 품질 개선 사용
+
+저장한 청바지/슬랙스/반바지의 `3D 모델 재생성`을 누르면 저장된 누끼/앞면의 외곽을 사용한다. 원본 비보관 의류는 등록 당시 서버가 만든 외곽 수치를 사용하며, 과거 수치가 없다면 `형태 분석용 바지 사진`을 별도 동의로 다시 입력할 수 있다. 단색 배경의 정면 전신 또는 올바른 투명 누끼가 필요하다. 복잡한 배경은 먼저 기존 3단계 누끼를 확인한다. 이미지 분석 수치 갱신은 기존 모델/작업을 무효화하므로 다시 생성한다.
+
+형태 재입력 사진은 저장하지 않아 B 원본 보관 조건을 대신하지 않는다. B는 세 권한 검증과 보관 사진이 있는 지원 바지에서 자동 선택되며 앞면 투영 근사만 수행한다. 고정밀 B는 계속 미지원이다. 새 패키지·가중치·환경변수·DB migration은 없다. API와 생성 워커를 재시작하면 새 코드가 적용된다.
+
+## 4단계 의류 파이프라인 보완 (2026-11-04)
+
+### Blender 오프라인 실험
+
+Blender는 필수 서버 의존성이 아니다. 공식4.5.9 LTS portable을 SHA256 확인 후 Git 제외 `backend/storage/quality-engine/tools`에 준비한 이번 로컬 검증만 수행했다. 재현 예:
+
+```powershell
+# backend에서 실행. 외부 바이너리를 저장소에 커밋하지 않는다.
+storage/quality-engine/tools/blender-4.5.9-windows-x64/blender.exe --background --threads 2 --python scripts/cloth_quality_experiment.py -- storage/quality-engine/tee-new.glb storage/quality-engine/cloth-tee
+```
+
+스크립트는 GPL-3.0-or-later다. 12프레임 핀 고정/중력과 자기 충돌을 실행하고 전후3시점·GLB·시간/변위/BVH 후보 JSON을 만든다. 마네킹 collider가 없는 실험이며 앱의 자동 피팅 기능이 아니다. CPU Cycles8샘플 렌더를 사용했다. 자세한 판단은 `VERIFICATION_GARMENT_PIPELINE.md`를 따른다.

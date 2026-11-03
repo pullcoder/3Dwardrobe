@@ -74,6 +74,7 @@ export interface FittingInput {
   adjustments: Adjustments;
 }
 export interface StudioDraft {
+  recommendation_id?: string;
   owner_id: string | null;
   selected: SlotSelection;
   adjustments: Adjustments;

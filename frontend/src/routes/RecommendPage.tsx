@@ -1,80 +1,30 @@
-import { useState } from "react";
-import { Sparkles } from "lucide-react";
-import {
-  ComingButton,
-  EmptyState,
-  Notice,
-  PageHeading,
-  Panel,
-} from "../components/UI";
+import { Notice, PageHeading, Panel } from "../components/UI";
+import { AccountPanel } from "../features/garments/AccountPanel";
+import { useSession } from "../stores/SessionContext";
+import { RecommendationWorkspace } from "../features/recommendations/RecommendationWorkspace";
 
 export function RecommendPage() {
-  const [style, setStyle] = useState("minimal");
-  const [fit, setFit] = useState("regular");
-  const [purpose, setPurpose] = useState("daily");
+  const { auth } = useSession();
   return (
     <>
       <PageHeading
         eyebrow="STYLE, YOUR WAY"
         title="AI 코디 추천"
-        description="평가가 아닌 제안. 나의 취향과 일상을 위한 스타일을 준비해요."
+        description="내 옷장과 취향으로 만드는 스타일 제안"
       />
       <Notice>
-        추천 엔진은 6단계에서 연결합니다. 추천 코디·이미지·점수를 임의로
-        생성하지 않습니다. 아래 선택은 화면을 벗어나면 초기화됩니다.
+        현재 추천 방식은 규칙 기반입니다. 실제 보유 의류만 조합하며, 점수는 착용
+        만족도나 패션 품질을 뜻하지 않습니다. 외부 AI에 사진을 전송하지
+        않습니다.
       </Notice>
-      <Panel
-        title="어떤 스타일을 찾고 있나요?"
-        subtitle="신체의 미적 등급을 매기지 않고 선호와 목적을 바탕으로 제안할 예정입니다."
-      >
-        <div className="form-grid three-col">
-          <label className="field">
-            <span>선호 스타일</span>
-            <select
-              value={style}
-              onChange={(event) => setStyle(event.target.value)}
-            >
-              <option value="minimal">미니멀</option>
-              <option value="casual">캐주얼</option>
-              <option value="street">스트릿</option>
-              <option value="classic">클래식</option>
-            </select>
-          </label>
-          <label className="field">
-            <span>선호하는 핏</span>
-            <select
-              value={fit}
-              onChange={(event) => setFit(event.target.value)}
-            >
-              <option value="regular">레귤러 핏</option>
-              <option value="relaxed">여유 있는 핏</option>
-              <option value="fitted">몸에 맞는 핏</option>
-            </select>
-          </label>
-          <label className="field">
-            <span>착용 목적</span>
-            <select
-              value={purpose}
-              onChange={(event) => setPurpose(event.target.value)}
-            >
-              <option value="daily">편안한 일상</option>
-              <option value="work">출근 / 미팅</option>
-              <option value="occasion">특별한 약속</option>
-            </select>
-          </label>
-        </div>
-        <ComingButton>
-          <Sparkles size={17} />
-          AI 코디 추천
-        </ComingButton>
-      </Panel>
-      <section className="panel">
-        <EmptyState title="나의 취향이 스타일이 되는 곳">
-          추천 기능을 연결하면 보유 의류로 구성한 3~5개 코디와
-          <br />
-          추천 이유, 3D 입어보기, 코디 저장을 제공합니다.
-        </EmptyState>
-      </section>
+      <AccountPanel />
+      {auth ? (
+        <RecommendationWorkspace key={auth.token} token={auth.token} />
+      ) : (
+        <Panel title="로그인 후 내 옷장으로 추천받기">
+          <p>체형 분석 없이 취향과 저장한 의류만으로도 추천할 수 있습니다.</p>
+        </Panel>
+      )}
     </>
   );
 }

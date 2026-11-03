@@ -3,7 +3,7 @@ import { Group, Mesh, Raycaster, Vector3 } from "three";
 import type { BufferAttribute } from "three";
 import type { BodyProfile } from "../body/types";
 import type { FitAdjustment, FittingResource } from "../../types/fitting";
-import { bodyDimensions, ellipseRadius } from "./geometry";
+import { bodyDimensions, ellipseRadius } from "../mannequin/geometry";
 
 export interface FitReport {
   status: "visual" | "insufficient";
@@ -39,6 +39,12 @@ export function fitGarment(
     meta.category !== resource.category ||
     !(
       meta.fitting_contract === "stylefit.parts.v1" ||
+      (meta.fitting_contract === "stylefit.panel.v3" &&
+        !!meta.top_panel &&
+        resource.category === "top") ||
+      (meta.fitting_contract === "stylefit.pants.v2" &&
+        resource.category === "bottom" &&
+        !!meta.pants) ||
       meta.version === "stylefit-template-1.0"
     )
   )
@@ -92,6 +98,9 @@ export function fitGarment(
         labels.includes(m.label) &&
         m.kind === kind &&
         m.target === "garment" &&
+        (!m.size ||
+          m.size.trim().toLowerCase() ===
+            resource.info.size.trim().toLowerCase()) &&
         m.value !== null &&
         m.unit !== "unknown",
     );
@@ -272,7 +281,46 @@ export function fitGarment(
         z = attribute.getZ(i);
       const oldY = y;
       let sleeveOrigin: Vector3 | undefined;
-      if (object.name.startsWith("sleeve")) {
+      if (meta.fitting_contract === "stylefit.panel.v3" && meta.top_panel) {
+        // 한 패널의 몸판/소매를 같은 연속 가중치로 변형해 어깨 경계가 갈라지지 않는다.
+        const side = x < 0 ? -1 : 1;
+        const joint = meta.top_panel.shoulder_half_width;
+        const dx = Math.abs(x) - joint;
+        const dy = oldY - height * 0.91;
+        let weight = clamp(dx / (width * 0.18), 0, 1);
+        weight *= clamp((oldY / height - 0.52) / 0.18, 0, 1);
+        weight = weight * weight * (3 - 2 * weight);
+        const angle = 0.85;
+        const armScale = (d.arm / 0.55) * adjustment.sleeve;
+        const armX =
+          side *
+          (desiredShoulder / 2 +
+            (dx * Math.cos(angle) + dy * Math.sin(angle)) * armScale);
+        const armY =
+          d.shoulder -
+          0.02 +
+          (-dx * Math.sin(angle) + dy * Math.cos(angle)) * armScale;
+        const torsoScale = Math.max(2 * (chest + margin), width * 0.78) / width;
+        const shapeScale = interpolate(oldY / height, [
+          [0, adjustment.hip],
+          [0.4, adjustment.waist],
+          [0.8, adjustment.chest],
+          [1, adjustment.shoulder],
+        ]);
+        x = x * torsoScale * shapeScale * (1 - weight) + armX * weight;
+        y =
+          (topHem + (oldY / height) * (d.shoulder - topHem)) * (1 - weight) +
+          armY * weight;
+        z *= Math.max(1, (chest * 0.72 + margin) / 0.11);
+        const surface = torsoRadii(y + adjustment.offset_y);
+        if (surface && weight < 0.3) {
+          const [rx, rz] = surface;
+          const envelope =
+            (rz + margin + 0.012) *
+            Math.sqrt(Math.max(0, 1 - (x / (rx + margin + 0.012)) ** 2));
+          z = Math.sign(z || 1) * Math.max(Math.abs(z), envelope);
+        }
+      } else if (object.name.startsWith("sleeve")) {
         const t = clamp(
           ((x - sign * width * 0.43) * sign * 0.52 +
             (height * 0.82 - y) * 0.85) /
@@ -301,6 +349,36 @@ export function fitGarment(
           d.shoulder - 0.98 * actualSleeve * t + adjustment.offset_y,
           0.015 * t,
         );
+      } else if (meta.fitting_contract === "stylefit.pants.v2" && meta.pants) {
+        // 사진의 넓은 밑단/낮은 밑위와 연결부를 보존한다. 고정 원통 중심으로 되돌리지 않는다.
+        const t = clamp(oldY / height, 0, 1);
+        const garmentWaist = value("waist_width", width);
+        const garmentHip = value("hip_width", width * 1.3);
+        const fitScale = Math.max(
+          1,
+          (2 * (waist + margin)) / garmentWaist,
+          (2 * (hip + margin)) / garmentHip,
+        );
+        const userScale = interpolate(t, [
+          [0, adjustment.hip],
+          [1 - meta.pants.rise_ratio, adjustment.hip],
+          [1, adjustment.waist],
+        ]);
+        x *= fitScale * userScale;
+        z *=
+          Math.max(1, (hip * 0.72 + margin) / (value("depth", 0.2) / 2)) *
+          userScale;
+        y = bottomHem + bottomLength * t;
+        // 골반 곡면이 행 사이에서 돌출되지 않도록 앞뒤 패널에 보수적 여유를 둔다.
+        // 사진의 x 외곽은 유지하고 관측되지 않은 깊이만 근사 보정한다.
+        const surface = torsoRadii(y + adjustment.offset_y);
+        if (surface) {
+          const [rx, rz] = surface;
+          const envelope =
+            (rz + margin + 0.015) *
+            Math.sqrt(Math.max(0, 1 - (x / (rx + margin + 0.015)) ** 2));
+          z = Math.sign(z || 1) * Math.max(Math.abs(z), envelope);
+        }
       } else if (object.name.startsWith("leg")) {
         const t = clamp(y / (height * 0.78), 0, 1);
         const oldCenter = sign * width * 0.25;

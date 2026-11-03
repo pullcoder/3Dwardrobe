@@ -1,7 +1,7 @@
 # StyleFit AI
 
 사용자가 업로드한 옷과 체형 정보에서 시작하는 개인화 AI 스타일링 플랫폼.
-현재는 **5단계: 개인 마네킹과 실제 GLB 의류의 시각적 근사 피팅·레이어링·비공개 코디 저장**을 제공한다. 기존 체형 분석·마네킹·의류 AI·A모드 GLB 생성·옷장을 유지한다.
+현재는 **6단계: 실제 옷장 기반 규칙 추천·취향·비공개 저장/피드백·기존 3D 피팅 연동**을 제공한다. 기존 체형 분석·마네킹·의류 AI·A모드 GLB 생성·시각적 근사 피팅·옷장을 유지한다.
 사진/수동 체형을 따로 편집하며 탭 저장과 선택적 암호화 기기 저장을 제공한다.
 상의·하의·겉옷을 한 씬에 장착하고 부위별 정점과 레이어 여유를 보정한다. 물리 기반 원단 움직임/정밀 착용감은 미지원이며 남는 관통을 표시한다. B 실제 고정밀 생성은 미구현이다.
 
@@ -18,12 +18,12 @@ npm ci
 cd ..
 .venv/Scripts/python scripts/prepare_models.py
 .venv/Scripts/python -m alembic upgrade head
-.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log
+.venv/Scripts/python -m app.local_dev
 ```
 
 새 터미널:
 
-`backend/`에서 생성 워커를 별도로 실행한다. API는 작업을 큐에 등록하며 워커가 없으면 대기 상태를 유지한다.
+권장 명령 `app.local_dev`는 API와 생성 워커를 같은 DB로 함께 실행한다. 위 명령을 사용했다면 아래 워커를 중복 실행할 필요가 없다. 독립 API 실행을 선택한 경우에만 `backend/`에서 다음 워커를 별도 실행한다. 워커가 없으면 작업은 대기 상태로 남는다.
 
 ```powershell
 .venv/Scripts/python -m app.generation_worker
@@ -51,7 +51,9 @@ Worker의 외부 연결 차단 CSP는 Vite 개발/미리보기 서버에 적용�
 
 ## 문서
 
-- [5단계 구현·검증·한계](docs/VERIFICATION_PHASE5.md), [피팅 설계](docs/PHASE5_DESIGN.md). 코디 복원에 필요한 최소 체형 수치의 서버 저장은 별도 동의가 필요하다. 마이그레이션은 d51e2a7b0903까지 적용한다.
+- [팀 공유용 파일 배치와 업로드 제외 기준](docs/REPOSITORY_MAP.md)
+
+- [5단계 구현·검증·한계](docs/VERIFICATION_PHASE5.md), [피팅 설계](docs/PHASE5_DESIGN.md). 코디 복원에 필요한 최소 체형 수치의 서버 저장은 별도 동의가 필요하다. 5단계 마이그레이션은 d51e2a7b0903이다. 현재 스키마는 생성 런타임 보완을 포함한 f71a4c9d1105까지 적용한다.
 
 - [전체 개발 계획](PROJECT_PLAN.md)
 - [AI 모델 라이선스 감사](AI_LICENSE_AUDIT.md)
@@ -65,3 +67,15 @@ Worker의 외부 연결 차단 CSP는 Vite 개발/미리보기 서버에 적용�
 
 과거 CLOSET-VERSE 문서는 [docs/archive](docs/archive)에 보존하며 현재 구현 기준으로 사용하지 않는다.
 현재 버전은 loopback 전용 개발 미리보기이며 배포·Play 출시용 빌드가 아니다.
+
+- [6단계 추천 설계](docs/PHASE6_DESIGN.md), [구현·검증·한계](docs/VERIFICATION_PHASE6.md): 실제 본인 옷장 기반 규칙 추천·취향·피드백·저장·기존 GLB 피팅 연결. 새 추천 AI 모델/외부 API는 사용하지 않는다.
+
+- [GLB 생성 장애 원인·복구·실제 파일 검증](docs/VERIFICATION_GLB_RECOVERY.md). 최신 migration은 f71a4c9d1105다.
+
+## 4단계 바지 품질 보완 (2026-11-03)
+
+사진 외곽 49개 높이 프로필을 실제 바지 메시 기하구조에 반영한다. A는 자체 일반 체크, B는 세 권한 verified·저장 원본·지원 바지에 한해 앞면 투영 근사를 제공한다. 이전 문서의 B 전체 미지원 상태에서 이 제한된 범위만 확장했으며 고정밀 복원은 여전히 미구현이다. 와이드핏 보존·허리밴드/일반 주름·GLB 재로딩·기존 마네킹 장착을 검증한다. 다른 단계는 진행하지 않는다. [구현·전후 비교·실제 검증·한계](docs/VERIFICATION_PANTS_QUALITY.md).
+
+## 4단계 의류 파이프라인 보완 (2026-11-04)
+
+[의류 생성 파이프라인 보완·실제 비교·Blender 실험](docs/VERIFICATION_GARMENT_PIPELINE.md): 연결 패널 티셔츠와 바지 검사/피팅 개선. 모든 의류의 AI 고정밀 복원이나 물리 피팅 완성을 뜻하지 않는다.

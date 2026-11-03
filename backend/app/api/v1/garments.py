@@ -33,7 +33,9 @@ from app.services.auth import (
 )
 from app.services.garment_ai import INFERENCE_LOCK, image_from_bytes
 from app.services.generation import invalidate_generation, model_asset, suspend_rights
+from app.services.pants_silhouette import PANTS, analyze_pants
 from app.services.reconstruction import POLICY_FIELDS, request_rights_review
+from app.services.top_silhouette import TOPS, analyze_top
 from app.services.uploads import validate_image
 
 router = APIRouter()
@@ -216,7 +218,12 @@ def create_garment(body: GarmentCreate, request: Request):
             id=str(uuid4()),
             user_id=user.id,
             data=body.info.model_dump(),
-            analysis=body.analysis,
+            # 외곽 분석은 서버가 사진에서 계산한 결과만 채택한다.
+            analysis={
+                key: value
+                for key, value in body.analysis.items()
+                if key not in {"silhouette", "silhouette_error"}
+            },
             created_at=datetime.now(UTC).isoformat(),
             source_type=body.source_type,
             original_image_retention=body.original_image_retention,
@@ -225,6 +232,7 @@ def create_garment(body: GarmentCreate, request: Request):
         )
         db.add(garment)
         db.flush()
+        shape_input = None
         for slot, image in body.images.items():
             try:
                 content = base64.b64decode(image.data, validate=True)
@@ -243,6 +251,8 @@ def create_garment(body: GarmentCreate, request: Request):
                 buffer = BytesIO()
                 # 원본 해상도·디코딩된 픽셀을 보존하고 메타데이터만 제거한다.
                 clean.save(buffer, format="PNG")
+            if slot == "cutout_front" or (slot == "front" and shape_input is None):
+                shape_input = buffer.getvalue()
             # 임시 선택 시 누끼를 포함한 모든 픽셀 파생물도 요청 종료 후 폐기한다.
             if body.original_image_retention == "consented_storage":
                 db.add(
@@ -254,6 +264,15 @@ def create_garment(body: GarmentCreate, request: Request):
                         mime="image/png",
                     )
                 )
+        if body.info.garment_type in PANTS | TOPS and shape_input:
+            analysis = dict(garment.analysis)
+            try:
+                analysis["silhouette"] = (
+                    analyze_top if body.info.garment_type in TOPS else analyze_pants
+                )(shape_input)
+            except AppError as error:
+                analysis["silhouette_error"] = error.code
+            garment.analysis = analysis
         db.commit()
         return garment_read(db, garment)
 

@@ -147,3 +147,44 @@ OCR은 명시된 단일 수치 행만 파싱하고 여러 사이즈 열의 대�
 응답: id, mannequin_id, mannequin(mode/values/origins), slots, adjustments, created_at, warnings, revision(피팅만), name(코디만).
 슬롯은 null 또는 available 리소스다. 저장 후 의류 삭제/모델 재생성/권한 철회 시 `{garment_id,status:unavailable,reason}`과 warnings를 반환하며 나머지 슬롯은 정상 복원한다. 상태 확인을 생략하고 이전 파일을 반환하지 않는다. B 모델은 세 권한 검증이 필요하며 A 권한으로 우회하지 않는다.
 API는 장착 설정/최소 체형을 저장한다. 실제 정점 변형과 3D 렌더링은 클라이언트에서 수행하며 물리 시뮬레이션 결과를 저장한 것으로 표시하지 않는다.
+
+## 6단계 취향·추천 API (`/api/v1`)
+
+모두 Bearer 인증 필수이며 서버가 사용자 ID를 결정한다. extra 필드/임의 사용자 ID·사진 입력은 거부한다.
+
+| 메서드 | 경로 | 동작 |
+|---|---|---|
+| GET / PUT | `/style-preferences` | 본인 취향 조회/수정. PUT에 revision, 최초 0, 충돌 409 |
+| POST | `/recommendations` | count 3~5(기본4), 실제 보유 조합만 생성. 부족하면 0~요청 개수. 선택 body 또는 본인 mannequin_id, 별도 body_processing_consent 필요 |
+| GET | `/recommendations` | 본인 목록. saved_only=false, limit=30(최대100), offset=0 |
+| GET / DELETE | `/recommendations/{id}` | 본인 상세/기록·피드백·저장 상태 삭제 |
+| POST | `/recommendations/{id}/feedback` | feedback: like/dislike/exclude/none |
+| POST | `/recommendations/{id}/save` | 추천 코디 저장. 멱등, 유효하지 않은 의류 409 |
+| GET | `/recommendations/{id}/preview/{part}` | 본인 실제 cutout_front 또는 front PNG. 미보관/권리 제한/삭제/정보 변경 404 |
+| POST | `/recommendations/{id}/apply` | 선택 본인 mannequin_id. 현재 권리·카테고리·GLB·고정 모델 UUID 재검사 후 slots/pins/recommendation_id/mannequin 반환. 미준비 409 |
+
+추천 상세는 실제 의류 정보·이유·치수 참고·engine·body_used·available·fitting_available·warnings·feedback·saved_at을 반환한다. 내부 점수/구성 요소는 서버에만 보관하며 사용자 만족도/신뢰도로 노출하지 않는다. 타인 ID는 404, 미인증 401, 잘못된 입력 400, 저장 한도 300개 초과 413. 모든 응답 no-store. `/apply`는 기존 피팅을 서버에서 덮어쓰지 않고 검증된 초안을 반환한다. 클라이언트 교체 확인 후 기존 스튜디오가 이를 표시하고 별도 동의/저장 API로 영속화한다.
+
+## GLB 복구 진단 필드
+
+기존 generate-3d 202는 작업 등록을 뜻하며 GLB 완료가 아니다. generation-status/rights-status의 응답에 `runtime: {engine, worker_online}`와 선택적 `failure: {stage, exception_type}`를 추가했다. worker_online은 같은 DB에서 같은 템플릿 엔진의 15초 이내 heartbeat가 있다는 뜻이며 모델 품질 보장이 아니다. 실패 단계는 mesh/exporting/validating/database_update/asset_storage/database_commit이다. 기존 `generation_error` 코드는 호환 유지한다.
+
+실제 GLB는 기존 비공개 garment_assets binary에 저장한다. generated_model_path의 `private:garment/{garment_id}/{asset_id}.glb`는 공개 디스크 경로가 아니다. 인증된 `/garments/{id}/model` 또는 소유권을 확인하는 Asset API로만 읽는다. 모델 생성·취소·의류/계정 삭제와 권한 철회 경계를 유지한다.
+
+## 바지 사진 외곽 분석 및 제한 B
+
+`POST /api/v1/garments/{id}/silhouette`: Bearer, X-Upload-Rights=confirmed, X-Image-Processing-Consent=confirmed, 실제 JPEG/PNG/WebP Content-Type과 원시 이미지. 10MiB/20MP 및 실제 콘텐츠를 검사한다. 청바지/슬랙스/반바지만 지원한다. 본인 소유/현재 사진 권한/분석 전후 revision과 rights_version을 검사한다. 사진은 저장하지 않고 `{silhouette, generation, revision}`을 반환한다. 타인404, 동의누락400, 부적절 외곽422, 동시변경409. 정보 갱신은 이전 생성 작업/모델을 취소한다.
+
+기존 POST garments에도 메모리 사진의 외곽 수치 분석을 추가했다. 분석 불가 시 등록은 허용하고 추정/오류 사유를 보관한다. 클라이언트 입력 analysis.silhouette은 무시한다. 사진 보관 선택과는 독립이다.
+
+기존 generate-3d는 바지의 서버 분석 수치 또는 저장된 누끼/앞면을 사용한다. shape_source=photo_silhouette_estimate 또는 estimated, texture_policy=procedural_generic_check/solid_color/verified_front_projection, fitting_contract=stylefit.pants.v2, pants.outline/rise_ratio/observed/fit_inference 등을 모델 메타데이터에 제공한다. 뒤/깊이는 계속 추정이다.
+
+b_available은 이제 해당 의류에 **제한적 바지 앞면 투영**이 기술적으로 가능한지 나타낸다. selected_mode는 여전히 기존 세 권한 정책을 따른다. b_high_fidelity_available=false이며 전체 B 고정밀 엔진은 없다. 세 권한 verified여도 지원 종류/보관 이미지/분석 가능한 윤곽이 없으면 B 요청을 거부한다. 클라이언트가 mode/권한을 주입할 수 없다. 원본 텍스처는 B에서만 비공개 GLB에 포함한다.
+
+## 바지 표면 품질 보완 (2026-11-03)
+
+바지 생성 응답의 model_version은 stylefit-pants-2.1이다. fitting_contract는 stylefit.pants.v2로 유지한다. 메타데이터 surface_detail=flattened_cloth_section_drape_folded_edges, detail_source=procedural_estimate는 세로 주름/접힌 단/단면을 절차적으로 추정했다는 뜻이다. 실제 원단 시뮬레이션이나 사진의 주름 복원이 아니다. 기존 A/B 소유권·증빙 검증·삭제 규칙을 유지한다.
+
+## 의류 생성 파이프라인 보완 (2026-11-04)
+
+`POST /garments/{id}/silhouette`는 티셔츠도 지원한다. 인증/소유권/X-Upload-Rights/X-Image-Processing-Consent 및 사진 미보관 규칙을 유지한다. top 결과는 kind=top, body_width_ratio, sleeve_extent_ratio, 일부 외곽 landmarks와 unknown 목 구조다. 명시 치수 우선, 사진의 절대 치수/뒷면은 확정하지 않는다. model_version=stylefit-panel-3.0, fitting_contract=stylefit.panel.v3, top_panel/mesh_quality/material_profile 메타데이터를 추가한다. 바지는2.2로 갱신하며 parts.v1/pants.v2 구형 계약도 유지한다. 런타임 자체 교차 검사는 not_evaluated_in_runtime으로 표시한다. Blender BVH 검사는 별도 실험 산출물이다.

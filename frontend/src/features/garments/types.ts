@@ -165,6 +165,24 @@ export interface ModelMetadata {
   triangle_count: number;
   mesh_names: string[];
   physical_simulation: false;
+  shape_source?: "photo_silhouette_estimate" | "estimated";
+  texture_policy?:
+    "procedural_generic_check" | "solid_color" | "verified_front_projection";
+  reconstruction_fidelity?: string;
+  top_panel?: {
+    template: string;
+    observed: boolean;
+    shoulder_y: number;
+    shoulder_half_width: number;
+    warnings: string[];
+  };
+  pants?: {
+    outline: [number, number, number][];
+    rise_ratio: number;
+    observed: boolean;
+    fit_inference: "wide" | "tapered";
+    warnings: string[];
+  };
 }
 export interface GenerationState {
   garment_id: string;
@@ -180,6 +198,8 @@ export interface GenerationState {
   job_id: string | null;
   stage: string;
   generation_error: string | null;
+  runtime: { engine: string; worker_online: boolean };
+  failure: { stage: string | null; exception_type: string | null } | null;
   model_ready: boolean;
   model_format: "glb" | null;
   model_version: string | null;

@@ -10,6 +10,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.api.v1.fittings import router as fitting_router
 from app.api.v1.garments import router as garment_router
 from app.api.v1.generation import router as generation_router
+from app.api.v1.recommendations import router as recommendation_router
 from app.api.v1.routes import router
 from app.core.config import Settings
 from app.core.database import create_database
@@ -41,7 +42,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_methods=["GET", "POST", "PATCH", "DELETE"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=[
             "Content-Type",
             "X-Upload-Rights",
@@ -113,6 +114,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(garment_router, prefix="/api/v1")
     app.include_router(generation_router, prefix="/api/v1")
     app.include_router(fitting_router, prefix="/api/v1")
+    app.include_router(recommendation_router, prefix="/api/v1")
     return app
 
 

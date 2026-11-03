@@ -1,29 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { spawn } from "node:child_process";
-import type { ChildProcess } from "node:child_process";
-import { fileURLToPath } from "node:url";
-
-let worker: ChildProcess;
-test.beforeAll(() => {
-  const python =
-    process.env.STYLEFIT_TEST_PYTHON ||
-    fileURLToPath(
-      new URL(
-        process.platform === "win32"
-          ? "../../backend/.venv/Scripts/python.exe"
-          : "../../backend/.venv/bin/python",
-        import.meta.url,
-      ),
-    );
-  worker = spawn(python, ["-m", "app.generation_worker"], {
-    cwd: fileURLToPath(new URL("../../backend", import.meta.url)),
-    stdio: "ignore",
-    windowsHide: true,
-  });
-});
-test.afterAll(() => {
-  worker?.kill();
-});
+import { writeFile } from "node:fs/promises";
 
 test("실제 워커의 상의·바지·겉옷 GLB → 재조회 → 360도 뷰어 → 삭제", async ({
   page,
@@ -106,7 +82,21 @@ test("실제 워커의 상의·바지·겉옷 GLB → 재조회 → 360도 뷰�
       { headers },
     );
     expect(model.status()).toBe(200);
-    expect((await model.body()).subarray(0, 4).toString()).toBe("glTF");
+    const bytes = await model.body();
+    expect(bytes.subarray(0, 4).toString()).toBe("glTF");
+    const document = JSON.parse(
+      bytes.subarray(20, 20 + bytes.readUInt32LE(12)).toString(),
+    );
+    expect(document.meshes.length).toBeGreaterThan(0);
+    expect(document.nodes[0].extras.triangle_count).toBeGreaterThan(100);
+    await writeFile(testInfo.outputPath(`${category}.glb`), bytes);
+    const runtime = await (
+      await page.request.get(
+        `http://127.0.0.1:8000/api/v1/garments/${garment.id}/generation-status`,
+        { headers },
+      )
+    ).json();
+    expect(runtime.runtime.worker_online).toBe(true);
     const canvas = panel.locator("canvas");
     await expect(canvas).toBeVisible();
     const front = await canvas.screenshot();

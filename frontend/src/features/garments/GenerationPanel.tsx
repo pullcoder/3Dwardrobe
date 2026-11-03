@@ -6,9 +6,11 @@ import {
   getGeneration,
   getModel,
   withdrawRights,
+  analyzeGarmentSilhouette,
 } from "../../api/garments";
 import type { GenerationState, RightStatus } from "./types";
 import { useSession } from "../../stores/SessionContext";
+import { checkImage } from "../../lib/images";
 
 const GarmentModelViewer = lazy(() => import("./GarmentModelViewer"));
 const rightsText: Record<RightStatus, string> = {
@@ -27,6 +29,15 @@ const states = {
   failed: "생성 실패",
   cancelled: "취소됨",
 };
+const stageText: Record<string, string> = {
+  mesh: "메시·재질 생성",
+  exporting: "GLB 내보내기",
+  validating: "GLB 검증",
+  saving: "비공개 저장",
+  asset_storage: "모델 저장",
+  database_update: "모델 경로 갱신",
+  database_commit: "저장 확정",
+};
 
 export function GenerationPanel({
   token,
@@ -41,9 +52,12 @@ export function GenerationPanel({
   const [state, setState] = useState<GenerationState>();
   const [bytes, setBytes] = useState<ArrayBuffer>();
   const [error, setError] = useState("");
+  const [pollError, setPollError] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  const [shapePhoto, setShapePhoto] = useState<File>();
+  const [shapeConsent, setShapeConsent] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
@@ -51,6 +65,7 @@ export function GenerationPanel({
       try {
         const result = await getGeneration(token, id, controller.signal);
         if (!controller.signal.aborted) {
+          setPollError("");
           setState(result);
           if (!result.model_ready) setBytes(undefined);
           setGarments((items) =>
@@ -68,7 +83,7 @@ export function GenerationPanel({
         }
       } catch (e) {
         if (!controller.signal.aborted)
-          setError(
+          setPollError(
             e instanceof Error ? e.message : "작업 상태를 조회하지 못했습니다.",
           );
       } finally {
@@ -123,12 +138,13 @@ export function GenerationPanel({
       <h3>의류 3D 복원</h3>
       <p>
         A모드: 일반적인 형태·색상을 반영한 독립 3D 의류. B모드: 증빙으로 이용
-        권한이 검증된 원본 디자인의 고정밀 복원.
+        권한이 검증된 바지 앞면의 제한적 투영 근사. 고정밀 복원은 아닙니다.
       </p>
       <p className="helper">
         A도 적법한 입력·처리 권한이 필요하며 모든 디자인의 법적 안전성을
-        보장하지 않습니다. 사진 텍스처·로고·일러스트는 복사하지 않습니다. 저장된
-        분석/수정 정보를 사용하므로 변경한 정보는 먼저 저장하세요.
+        보장하지 않습니다. A에서는 사진 텍스처·로고·일러스트를 복사하지
+        않습니다. 저장된 분석/수정 정보를 사용하므로 변경한 정보는 먼저
+        저장하세요.
       </p>
       {state ? (
         <>
@@ -141,9 +157,23 @@ export function GenerationPanel({
           <p role="status">
             작업 상태: {states[state.generation_status]}
             {state.generation_status === "processing"
-              ? ` · ${state.stage === "mesh" ? "메시·재질 생성" : "GLB 검증"}`
+              ? ` · ${stageText[state.stage] ?? "작업 처리"}`
               : ""}
           </p>
+          {!state.runtime?.worker_online ? (
+            <p role="status" className="helper">
+              3D 생성 워커의 응답이 없습니다. 생성 요청은 대기열에 보관됩니다.
+              서버에서 API와 생성 워커를 함께 실행해야 처리됩니다. 워커를 다시
+              연결하면 대기 요청을 처리합니다.
+            </p>
+          ) : null}
+          {state.failure ? (
+            <p role="alert">
+              실패 단계: {stageText[state.failure.stage ?? ""] ?? "미확인"} ·
+              예외 유형: {state.failure.exception_type ?? "미확인"}. 정보를
+              확인하고 재시도해 주세요.
+            </p>
+          ) : null}
           {active ? (
             <p className="helper">
               백그라운드 처리 중입니다. 대기 상태가 계속되면 생성 워커 실행
@@ -179,9 +209,101 @@ export function GenerationPanel({
           ) : null}
           {bUnavailable ? (
             <p>
-              B모드는 권한이 검증되었지만 복원 기술 검증이 끝나지 않아
-              비활성화되어 있습니다.
+              이 의류의 B 복원은 미지원입니다. 바지 앞면 투영만 저장 사진과 세
+              권한 검증이 갖춰진 경우에 지원합니다.
             </p>
+          ) : null}
+          {["티셔츠", "청바지", "슬랙스", "반바지"].includes(garmentType) ? (
+            <section
+              aria-label={
+                garmentType === "티셔츠"
+                  ? "티셔츠 실루엣 분석"
+                  : "바지 실루엣 분석"
+              }
+            >
+              <h4>사진 외곽을 의류 템플릿에 반영</h4>
+              <p>
+                저장한 누끼·앞면은 생성 시 분석합니다. 원본을 보관하지 않았다면
+                아래에 정면 사진이나 누끼 PNG를 다시 입력하세요. 사진은 이 분석
+                후 저장하지 않고 외곽 수치만 비공개 기록합니다.
+              </p>
+              <label className="field">
+                형태 분석용 의류 사진
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={busy || active}
+                  onChange={(event) => {
+                    setShapePhoto(event.target.files?.[0]);
+                    setShapeConsent(false);
+                  }}
+                  style={{
+                    position: "static",
+                    opacity: 1,
+                    width: "100%",
+                    height: "auto",
+                  }}
+                />
+              </label>
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  disabled={busy || active}
+                  checked={shapeConsent}
+                  onChange={(event) => setShapeConsent(event.target.checked)}
+                />
+                이 사진의 이용 권한을 확인했으며 형태 분석을 위해 로컬 서버로
+                전송하는 데 동의합니다.
+              </label>
+              <button
+                className="button secondary"
+                type="button"
+                disabled={
+                  busy ||
+                  active ||
+                  !shapePhoto ||
+                  !shapeConsent ||
+                  !state.selected_mode
+                }
+                onClick={() =>
+                  void act(async () => {
+                    if (!shapePhoto) return;
+                    await checkImage(shapePhoto);
+                    const result = await analyzeGarmentSilhouette(
+                      token,
+                      id,
+                      shapePhoto,
+                    );
+                    setGarments((items) =>
+                      items.map((item) =>
+                        item.id === id
+                          ? {
+                              ...item,
+                              revision: result.revision,
+                              model_3d_status: "cancelled",
+                            }
+                          : item,
+                      ),
+                    );
+                    setShapePhoto(undefined);
+                    setShapeConsent(false);
+                  })
+                }
+              >
+                사진 외곽 분석
+              </button>
+              <button
+                className="button secondary"
+                type="button"
+                disabled={busy || !shapePhoto}
+                onClick={() => {
+                  setShapePhoto(undefined);
+                  setShapeConsent(false);
+                }}
+              >
+                분석 사진 삭제
+              </button>
+            </section>
           ) : null}
           {unsupported ? (
             <p>
@@ -231,10 +353,13 @@ export function GenerationPanel({
                 ? "모델 생성에 실패했습니다. 정보를 확인하고 재시도해 주세요."
                 : state.generation_error === "WORKER_TIMEOUT"
                   ? "워커가 응답하지 않아 생성에 실패했습니다. 재시도할 수 있습니다."
-                  : "정보·권한 변경 또는 삭제 요청으로 이전 작업과 모델이 무효화되었습니다."}
+                  : state.generation_error === "SOURCE_UNAVAILABLE"
+                    ? "허용된 원본 사진을 찾지 못했습니다. 원본 보관 및 권한을 확인해 주세요."
+                    : "정보·권한 변경 또는 삭제 요청으로 이전 작업과 모델이 무효화되었습니다."}
             </p>
           ) : null}
-          {bytes && state.model_ready ? (
+          {busy ? <p role="status">요청 처리 중…</p> : null}
+          {bytes && state.model_ready && !busy ? (
             <Suspense fallback={<p>3D 뷰어 준비 중…</p>}>
               <GarmentModelViewer key={jobId} bytes={bytes} />
             </Suspense>
@@ -256,6 +381,11 @@ export function GenerationPanel({
                           width: "너비",
                           depth: "깊이",
                           sleeve: "소매 길이",
+                          waist_width: "허리 단면",
+                          hip_width: "골반 단면",
+                          rise: "밑위",
+                          thigh_width: "바지통 단면",
+                          hem_width: "밑단 단면",
                         } as Record<string, string>
                       )[key] ?? key}
                       : {(dimension.value * 100).toFixed(1)} cm ·{" "}
@@ -265,11 +395,24 @@ export function GenerationPanel({
                           ? "직접 입력"
                           : dimension.source === "ocr"
                             ? "OCR 제안"
-                            : "분석 기반 추정"}
+                            : dimension.source === "photo_silhouette_estimate"
+                              ? "사진 실루엣 기반 추정"
+                              : "분석 기반 추정"}
                     </li>
                   ),
                 )}
               </ul>
+              <p>
+                형태:{" "}
+                {state.model_metadata.shape_source ===
+                "photo_silhouette_estimate"
+                  ? "사진의 높이별 외곽 비율 반영"
+                  : "일반 템플릿 추정"}{" "}
+                · 후면 및 깊이 추정
+              </p>
+              {state.model_metadata.warnings.map((warning) => (
+                <p key={warning}>{warning}</p>
+              ))}
             </details>
           ) : null}
         </>
@@ -277,6 +420,7 @@ export function GenerationPanel({
         <p>생성 상태 확인 중…</p>
       )}
       {error ? <p role="alert">{error}</p> : null}
+      {pollError ? <p role="alert">{pollError}</p> : null}
     </section>
   );
 }

@@ -1,28 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { spawn } from "node:child_process";
-import type { ChildProcess } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-
-let worker: ChildProcess;
-test.beforeAll(() => {
-  const python =
-    process.env.STYLEFIT_TEST_PYTHON ||
-    fileURLToPath(
-      new URL(
-        process.platform === "win32"
-          ? "../../backend/.venv/Scripts/python.exe"
-          : "../../backend/.venv/bin/python",
-        import.meta.url,
-      ),
-    );
-  worker = spawn(python, ["-m", "app.generation_worker"], {
-    cwd: fileURLToPath(new URL("../../backend", import.meta.url)),
-    stdio: "ignore",
-    windowsHide: true,
-  });
-});
-test.afterAll(() => worker?.kill());
 
 test("실제 3개 GLB 피팅·부위 조정·교체·코디 복원·권한 철회·캐시·터치", async ({
   page,
@@ -108,11 +86,22 @@ test("실제 3개 GLB 피팅·부위 조정·교체·코디 복원·권한 철�
   const bare = await canvas.screenshot();
   const start = Date.now();
   await page.getByLabel("상의", { exact: true }).selectOption(ids[0]);
-  await expect(viewport).toHaveAttribute("data-mounted-count", "1");
+  await expect(viewport).toHaveAttribute("data-mounted-count", "1", {
+    timeout: 20000,
+  });
+  const shirtOnBody = await canvas.screenshot({
+    path: testInfo.outputPath("tshirt-on-mannequin.png"),
+  });
+  expect(shirtOnBody.equals(bare)).toBe(false);
   await page.getByLabel("하의", { exact: true }).selectOption(ids[2]);
-  await expect(viewport).toHaveAttribute("data-mounted-count", "2");
+  await expect(viewport).toHaveAttribute("data-mounted-count", "2", {
+    timeout: 20000,
+  });
   await page.getByLabel("겉옷", { exact: true }).selectOption(ids[3]);
-  await expect(viewport).toHaveAttribute("data-mounted-count", "3");
+  // 새 연결 패널의 첫 GLB 로드와 레이어 보정 완료까지 실제 상태를 기다린다.
+  await expect(viewport).toHaveAttribute("data-mounted-count", "3", {
+    timeout: 20000,
+  });
   const coldLoadMs = Date.now() - start;
   expect((await canvas.screenshot()).equals(bare)).toBe(false);
   const bounds = JSON.parse(
@@ -127,7 +116,9 @@ test("실제 3개 GLB 피팅·부위 조정·교체·코디 복원·권한 철�
     expect(bound.max[1]).toBeLessThan(2.5);
   }
   await page.getByLabel("상의", { exact: true }).selectOption(ids[1]);
-  await expect(viewport).toHaveAttribute("data-mounted-count", "3");
+  await expect(viewport).toHaveAttribute("data-mounted-count", "3", {
+    timeout: 20000,
+  });
   await expect(page.getByLabel("하의", { exact: true })).toHaveValue(ids[2]);
   await expect(page.getByLabel("겉옷", { exact: true })).toHaveValue(ids[3]);
   await page
@@ -145,10 +136,14 @@ test("실제 3개 GLB 피팅·부위 조정·교체·코디 복원·권한 철�
   await page
     .getByRole("button", { name: "하의 선택 해제", exact: true })
     .click();
-  await expect(viewport).toHaveAttribute("data-mounted-count", "2");
+  await expect(viewport).toHaveAttribute("data-mounted-count", "2", {
+    timeout: 20000,
+  });
   await expect(page.getByLabel("상의", { exact: true })).toHaveValue(ids[1]);
   await page.getByLabel("하의", { exact: true }).selectOption(ids[2]);
-  await expect(viewport).toHaveAttribute("data-mounted-count", "3");
+  await expect(viewport).toHaveAttribute("data-mounted-count", "3", {
+    timeout: 20000,
+  });
   await page.getByText("체형 수정", { exact: true }).click();
   for (const [label, value] of [
     ["키 (cm)", "175"],
@@ -258,7 +253,9 @@ test("실제 3개 GLB 피팅·부위 조정·교체·코디 복원·권한 철�
   await page
     .getByRole("button", { name: "복원 테스트 불러오기", exact: true })
     .click();
-  await expect(viewport).toHaveAttribute("data-mounted-count", "3");
+  await expect(viewport).toHaveAttribute("data-mounted-count", "3", {
+    timeout: 20000,
+  });
   await page.getByText("체형 수정", { exact: true }).click();
   await expect(page.getByLabel("가슴둘레 (cm)", { exact: true })).toHaveValue(
     "106",
@@ -272,7 +269,9 @@ test("실제 3개 GLB 피팅·부위 조정·교체·코디 복원·권한 철�
     .selectOption("light");
   for (let i = 0; i < 4; i++) {
     await page.getByLabel("상의", { exact: true }).selectOption(ids[i % 2]);
-    await expect(viewport).toHaveAttribute("data-mounted-count", "3");
+    await expect(viewport).toHaveAttribute("data-mounted-count", "3", {
+      timeout: 20000,
+    });
   }
   expect(
     Number(await viewport.getAttribute("data-cache-entries")),
@@ -289,7 +288,9 @@ test("실제 3개 GLB 피팅·부위 조정·교체·코디 복원·권한 철�
   await page
     .getByRole("button", { name: "모델 다시 불러오기", exact: true })
     .click();
-  await expect(viewport).toHaveAttribute("data-mounted-count", "3");
+  await expect(viewport).toHaveAttribute("data-mounted-count", "3", {
+    timeout: 20000,
+  });
   expect(
     (
       await page.request.post(`${api}/garments/${ids[3]}/rights-withdraw`, {

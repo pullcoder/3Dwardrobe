@@ -22,6 +22,8 @@ from app.services.generation import (
     selected_mode,
     suspend_rights,
 )
+from app.services.pants_silhouette import PANTS, analyze_pants
+from app.services.top_silhouette import TOPS, analyze_top
 from app.services.uploads import validate_image
 
 router = APIRouter()
@@ -29,6 +31,69 @@ router = APIRouter()
 
 class EmptyInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+@router.post("/garments/{garment_id}/silhouette")
+async def analyze_silhouette(garment_id: str, request: Request):
+    if (
+        request.headers.get("x-upload-rights") != "confirmed"
+        or request.headers.get("x-image-processing-consent") != "confirmed"
+    ):
+        raise AppError(
+            "CONSENT_REQUIRED", "사진 처리 권한과 형태 분석을 위한 서버 전송에 동의해 주세요."
+        )
+    with database(request) as db:
+        garment = owned(db, current_user(request, db).id, garment_id)
+        if not selected_mode(garment):
+            raise AppError("RIGHTS_REQUIRED", "현재 사진 처리 권한을 확인해 주세요.", 403)
+        if garment.data.get("garment_type") not in PANTS | TOPS:
+            raise AppError(
+                "UNSUPPORTED_GARMENT",
+                "현재 형태 분석은 티셔츠·청바지·슬랙스·반바지를 지원합니다.",
+                422,
+            )
+        revision, rights_version = garment.revision, garment.rights_version
+        analyze = analyze_top if garment.data.get("garment_type") in TOPS else analyze_pants
+    data = await request.body()
+    if len(data) > request.app.state.settings.max_upload_bytes:
+        raise AppError("FILE_TOO_LARGE", "사진은 10 MiB 이하여야 합니다.", 413)
+    validate_image(
+        data,
+        request.headers.get("content-type", "").split(";")[0],
+        request.app.state.settings.max_image_pixels,
+    )
+    # CPU 사진 처리 동안 이벤트 루프를 막지 않는다. 원본 픽셀은 저장하지 않는다.
+    from starlette.concurrency import run_in_threadpool
+
+    shape = await run_in_threadpool(analyze, data)
+    with database(request) as db:
+        garment = owned(db, current_user(request, db).id, garment_id)
+        if (
+            garment.revision != revision
+            or garment.rights_version != rights_version
+            or not selected_mode(garment)
+        ):
+            raise AppError(
+                "CONFLICT", "분석 중 의류나 권한이 변경되었습니다. 다시 시도해 주세요.", 409
+            )
+        changed = db.execute(
+            update(Garment)
+            .where(
+                Garment.id == garment.id,
+                Garment.revision == revision,
+                Garment.rights_version == rights_version,
+            )
+            .values(analysis={**garment.analysis, "silhouette": shape}, revision=revision + 1)
+        )
+        if not changed.rowcount:
+            raise AppError("CONFLICT", "다른 변경이 저장되었습니다. 다시 시도해 주세요.", 409)
+        invalidate_generation(db, garment, "SILHOUETTE_UPDATED")
+        db.commit()
+        return {
+            "silhouette": shape,
+            "generation": generation_read(db, garment),
+            "revision": garment.revision,
+        }
 
 
 @router.post("/garments/{garment_id}/generate-3d", status_code=202)

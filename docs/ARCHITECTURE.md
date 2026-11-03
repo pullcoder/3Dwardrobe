@@ -25,14 +25,14 @@ React PhotoPicker: 권리 확인 → 로컬 파일 검증·미리보기·드롭�
 ```
 
 추론 중 사진/임베딩은 요청 범위만 유지하고 자동 DB 저장하지 않는다. 모델 객체/텍스트 후보 임베딩만 재사용한다.
-추론 엔진은 `services/garment_ai.py`, 모델 준비/해시는 `model_manifest.json`과 `scripts/prepare_models.py`다.
+추론 엔진 구현은 `ai/garment_analysis.py`(호환 진입점 `services/garment_ai.py`), 모델 준비/해시는 `model_manifest.json`과 `scripts/prepare_models.py`다.
 OCR은 `backend/ocr`의 Node 24 subprocess가 로컬 언어 데이터와 WASM만 사용하며 임시 이미지·OCR 캐시를 쓰지 않는다.
 현재 서버 큐/Celery/Redis는 없다. CPU 경합은 429로 응답하며 UI에서 재시도한다. 로컬 개발용 선택이다.
 SQLAlchemy/Alembic/PostgreSQL 드라이버를 도입했지만 현재 실행은 SQLite 개발 DB다. PostgreSQL 실접속·운영 마이그레이션은 미검증이다.
 원본 이미지 메타데이터는 제거하되 픽셀 해상도를 유지한 PNG를 DB binary로 보관한다. Asset UUID 이외 파일명을 보관하지 않고 공개 저장소가 없다.
 세션은 scrypt 암호 해시·SHA256 토큰 해시·12시간 만료. 클라이언트 토큰은 탭 메모리이며 로그아웃/새로고침 후 재로그인한다.
 모든 개인 데이터/이미지에서 소유권을 검사한다. 계정 삭제는 암호 확인 후 연관 행을 제거한다. 신고 검토 API는 별도 서버 관리자 키로 제한한다.
-4단계 A 실제 메시/GLB 생성을 추가했다. 가상 피팅과 B 실제 고정밀 엔진은 미구현이다. 현재 구현은 [PHASE4_DESIGN.md](PHASE4_DESIGN.md)를 따른다.
+4단계 A 실제 메시/GLB와 5단계 시각적 근사 피팅을 제공한다. B 실제 고정밀 생성 엔진은 미구현이다. 현재 구현은 [PHASE4_DESIGN.md](PHASE4_DESIGN.md)를 따른다.
 
 ### 복원 정책 DB 변경
 
@@ -107,3 +107,37 @@ React/TS/Vite/Tailwind (127.0.0.1:5173)
 DB 모델·Alembic 초기 마이그레이션은 3단계에 추가했다. Celery 앱·분산 Job·오브젝트 저장소는 아직 없다.
 
 과거 모델 초안은 [archive/ARCHITECTURE.md](archive/ARCHITECTURE.md)이며 현재 DB 스키마가 아니다.
+
+## 6단계 추천 경로와 파일 정리
+
+`features/recommendations` → 인증 preferences/recommendations API → `services/recommendations.py`(소유권·현재 권리·영속 기록) → `services/recommendation_rules.py`(순수 점수·조합·다양성) → Recommendation/StylePreference → 권한 검증 미리보기·apply → 기존 StudioDraft/FittingViewport. 영속 추천과 기존 3D Outfit은 구분하고 옷장 코디 탭에서 함께 조회한다.
+
+새 마이그레이션 `e61f3b8c1004`는 `d51e2a7b0903` 다음이다. 신규 style_preferences/recommendations의 user FK는 CASCADE, 선택 마네킹 참조는 SET NULL이다. 원시 체형 프로필/사진은 추천 테이블에 저장하지 않는다. 최소 비교 설명도 개인정보로 취급한다.
+
+사용자가 요청한 파일 정리를 유지한다. SQLAlchemy 모델은 `app/models/`의 도메인별 모듈에서 정의하고 `models/__init__.py`로 기존 import를 보존한다. 의류 추론 구현은 `app/ai/garment_analysis.py`, 생성 워커 구현은 `app/workers/generation.py`다. 기존 `services/garment_ai.py` 및 `python -m app.generation_worker`는 호환 진입점이다. 프론트엔드 피팅 컴포넌트·알고리즘·캐시·CSS·코디 보관함은 `features/fitting/`으로 모았다. 파일 이동 자체로 기존 모델/추론/워커의 동작을 바꾸지 않는다.
+
+## 4단계 GLB 런타임 복구
+
+장애 당시 API/프론트엔드는 실행 중이었지만 별도 생성 워커가 없었고 동일 DB에 queued 작업 2건이 남았다. `app.local_dev`는 현재 DB의 Alembic head를 확인한 뒤 같은 Python/환경으로 API와 `app.generation_worker`를 함께 실행한다. 분리된 워커 구조는 유지하며 API 내부 스레드로 생성 성공을 모사하지 않는다. 자식 프로세스 장애는 함께 중지하고 재실행 시 영속 큐를 이어 처리한다.
+
+`generation_workers`는 익명 프로세스 UUID·템플릿 엔진 버전·heartbeat 시각만 보관한다. 유효 기간은 15초이며 사진·사용자 ID·DB 접속 정보는 없다. GenerationJob에는 nullable failure_stage/exception_type을 추가했다. 새 migration f71a4c9d1105는 e61f3b8c1004 다음이다.
+
+기존 make_meshes → build_glb → validate_glb → DB Asset/모델 참조 원자적 저장 경로를 재사용한다. 실제 내보내기 단계 관찰을 추가하고 빈 씬 GLB를 거부한다. 새 템플릿·가중치·3D 파일 포맷·공개 스토리지는 도입하지 않았다.
+
+## 바지 photo silhouette → pants v2
+
+의류 등록 또는 명시적 silhouette 재입력 → 서버 `pants_silhouette.py`: 알파/단색 배경, 연결 성분, 외부 flood-fill, 다리 분기와 49개 높이의 외/내측 경계 → 수치만 계정별 analysis에 보관 → generation snapshot의 수치 프로필 → `pants_mesh.py`: 허리/골반/밑위 분기를 연결하는 전후 패널과 두 바지통, 일반 밴드/주름 변위 → `pants_materials.py`: A 자체 체크 또는 검증된 B 앞면 투영 → VEC2 UV와 내장 PNG를 포함하는 실제 GLB → 기존 비공개 Asset/권한/lease 저장.
+
+세 의미 부위 이름 waist/leg_left/leg_right는 유지한다. 5단계 로더는 stylefit.pants.v2 계약을 인식하고 사진 외곽을 옛 원통 중심으로 다시 압축하지 않는다. stylefit.parts.v1 구형 모델과 상의/겉옷 경로는 그대로 지원한다. 원본 보관·권리 검증·소유권·계정/의류 삭제·늦은 작업 게시 방지를 유지한다. 새로운 DB 컬럼/마이그레이션은 필요하지 않다.
+
+B의 영속 snapshot에는 서버가 선택한 이미지 Asset UUID/좌표만 둔다. 작업 직전 해당 의류와의 대응 및 세 권한을 다시 확인해 메모리에서만 읽고, 후면은 원본과 별개로 추정한다. B를 일반 고정밀 엔진으로 표시하지 않는다.
+
+## 바지 표면 품질 보완 (2026-11-03)
+
+바지 엔진 stylefit-pants-2.1은 기존 49행 사진 외곽과 stylefit.pants.v2 계약을 유지한다. 표면 표본을 가로49/상부33+밴드행/다리65행으로 늘리고 납작한 초타원 단면, 세로 드레이프, 접힌 허리/밑단을 만든다. 공유 좌표의 법선을 평균해 부위 경계 음영을 연결한다. 재질은 자체 생성 미세 체크/짜임이며 검증된 B 앞면 atlas는 1536×1280으로 출력한다. 기존2.0 재질의 GLB 검증도 버전별로 유지한다. DB/API/권한 계약은 바뀌지 않는다.
+
+A의 미세 원단 UV는 표면 단면의 호 길이에 따라 배치해 옆면에서 체크가 늘어나는 현상을 줄인다. B의 앞면 투영 좌표는 별도로 유지한다.
+
+## 의류 생성 파이프라인 보완 (2026-11-04)
+
+기존 상의 ring 몸판+독립 sleeve 조합을 티셔츠에 한해 연결 패널 엔진으로 교체했다. garment_templates 카탈로그→top_silhouette의 몸판 폭/소매 범위 추정→pattern_top의 오목한 목 구멍을 보존한 triangulation/공유 중점 subdivision→앞뒤 패널 및 어깨/옆선/소매 경계 봉합→mesh_quality의 개구부·연결·퇴화·비다양체·winding 검사→GLB→stylefit.panel.v3 연속 가중 피팅을 사용한다. 몸판과 소매가 한 메시이며 단순 겹침으로 연결하지 않는다. 기본/오버핏 티셔츠와 기존 와이드/슬림 바지부터 보완한다. 셔츠/재킷은 legacy_approximation, 후드티 연결 템플릿은 unavailable이다. 기존 기능을 지원 완료로 다시 분류하지 않는다. 피팅은 bottom→top→outer 순서로 하의가 상의의 내부 레이어가 되도록 보정한다. 외부 시뮬레이션은 앱 워커와 분리된 실험이다.

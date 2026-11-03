@@ -18,11 +18,11 @@
 
 | 파일 | 바이트 | 메시/삼각형 | Three.js 재로딩 경계 크기 (m) |
 |---|---:|---:|---|
-| [tshirt.glb](../backend/storage/phase4-validation/tshirt.glb) | 21,332 | 3 / 768 | 0.792025 × 0.68 × 0.24 |
-| [pants.glb](../backend/storage/phase4-validation/pants.glb) | 17,924 | 3 / 576 | 0.3744 × 1.02 × 0.2392 |
-| [jacket.glb](../backend/storage/phase4-validation/jacket.glb) | 21,348 | 3 / 768 | 1.156025 × 0.72 × 0.238826 |
+| tshirt.glb — 로컬 전용 `backend/storage/phase4-validation/tshirt.glb` | 21,332 | 3 / 768 | 0.792025 × 0.68 × 0.24 |
+| pants.glb — 로컬 전용 `backend/storage/phase4-validation/pants.glb` | 17,924 | 3 / 576 | 0.3744 × 1.02 × 0.2392 |
+| jacket.glb — 로컬 전용 `backend/storage/phase4-validation/jacket.glb` | 21,348 | 3 / 768 | 1.156025 × 0.72 × 0.238826 |
 
-Python 자체 검증과 독립된 실제 Three.js GLTFLoader 재로딩, 유한 입체 범위·삼각형 비퇴화·법선 단위 길이·재질 연결·메타데이터·이미지 텍스처 부재를 확인했다. [해시/생성 메타데이터](../backend/storage/phase4-validation/results.json), [Three.js 결과](../backend/storage/phase4-validation/three-validation.json).
+Python 자체 검증과 독립된 실제 Three.js GLTFLoader 재로딩, 유한 입체 범위·삼각형 비퇴화·법선 단위 길이·재질 연결·메타데이터·이미지 텍스처 부재를 확인했다. 해시/생성 메타데이터 — 로컬 전용 `backend/storage/phase4-validation/results.json`, Three.js 결과 — 로컬 전용 `backend/storage/phase4-validation/three-validation.json`.
 모델은 일반 표면이며 몸판/소매/바지통이 겹치는 별도 메시다. 봉제 가능한 연속 토폴로지나 정밀 실제 의류 복원을 보장하지 않는다. 뒤/깊이/없는 치수는 추정이다.
 
 ## 실행한 검사
@@ -45,7 +45,7 @@ Python 자체 검증과 독립된 실제 Three.js GLTFLoader 재로딩, 유한 �
 첫 전체 E2E는 21/22 통과였다. 실제 CLIP/SAM/OCR·3D 생성은 양쪽 모두 통과했으며 기존 모바일 메뉴 테스트에서 이전 해시 이동의 메뉴 닫힘을 기다리지 않는 타이밍 문제가 있었다. 클릭 전후 메뉴 상태를 기다리도록 helper를 보완했다. 테스트/검증 항목을 삭제·skip하거나 강제 클릭으로 우회하지 않았다. 해당 모바일 4개 회귀 테스트는 별도 재실행으로 통과했다.
 
 백엔드는 사진 미확인 차단, A/B 자동 선택, 사용자/타인/관리자 경계, 실제 증빙 요구, 9종 실제 GLB/재질/좌표, 실패/잘못된 GLB/재시도, lease 회수, API 재시작 후 큐 유지, 삭제/신고/철회/수정 중 늦은 결과 차단, 실제 증빙/판단/모델/작업의 계정 삭제 cascade를 확인했다.
-브라우저는 실제 별도 워커로 티셔츠·청바지·재킷 생성, 인증 모델 GET/GLB 헤더, 실제 WebGL 렌더링, 정면/측면/후면/확대/축소/초기화·드래그에 따른 캔버스 변화, 종류별 다른 형상, 모델 삭제 및 가로 넘침 부재를 데스크톱/모바일에서 확인했다. 이후 추가한 Chromium 터치 이벤트의 회전·핀치 확대도 모바일 테스트에서 통과했다. 자동 테스트의 모바일 뷰포트는 Android 실기기 인증을 의미하지 않는다. [모바일 상의 화면](../frontend/test-results/phase4-top-mobile.png), [바지](../frontend/test-results/phase4-bottom-mobile.png), [겉옷](../frontend/test-results/phase4-outer-mobile.png).
+브라우저는 실제 별도 워커로 티셔츠·청바지·재킷 생성, 인증 모델 GET/GLB 헤더, 실제 WebGL 렌더링, 정면/측면/후면/확대/축소/초기화·드래그에 따른 캔버스 변화, 종류별 다른 형상, 모델 삭제 및 가로 넘침 부재를 데스크톱/모바일에서 확인했다. 이후 추가한 Chromium 터치 이벤트의 회전·핀치 확대도 모바일 테스트에서 통과했다. 자동 테스트의 모바일 뷰포트는 Android 실기기 인증을 의미하지 않는다. 모바일 상의 화면 — 로컬 전용 `frontend/test-results/phase4-top-mobile.png`, 바지 — 로컬 전용 `frontend/test-results/phase4-bottom-mobile.png`, 겉옷 — 로컬 전용 `frontend/test-results/phase4-outer-mobile.png`.
 
 ## 라이선스와 미구현
 

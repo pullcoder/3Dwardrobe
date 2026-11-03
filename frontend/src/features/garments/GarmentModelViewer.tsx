@@ -49,7 +49,9 @@ function Controls({ scene, command }: { scene: Group; command: Command }) {
     const box = new Box3().setFromObject(scene);
     const center = box.getCenter(new Vector3());
     const size = box.getSize(new Vector3());
-    const distance = Math.max(size.x, size.y, size.z) * 2.5;
+    // 세로·가로 화각 중 좁은 쪽에 맞춰 모델을 크게 배치한다.
+    const aspect = gl.domElement.clientWidth / gl.domElement.clientHeight;
+    const distance = Math.max(size.y, size.x / Math.max(0.4, aspect)) * 1.75;
     orbit.target.copy(center);
     if (command.view === "zoom_in" || command.view === "zoom_out") {
       camera.position
@@ -73,7 +75,7 @@ function Controls({ scene, command }: { scene: Group; command: Command }) {
     }
     orbit.update();
     invalidate();
-  }, [camera, command, invalidate, scene]);
+  }, [camera, command, gl, invalidate, scene]);
   return null;
 }
 
@@ -143,9 +145,10 @@ export default function GarmentModelViewer({ bytes }: { bytes: ArrayBuffer }) {
               fallback={<p role="alert">WebGL이 필요합니다.</p>}
             >
               <color attach="background" args={["#eee9f3"]} />
-              <ambientLight intensity={1.7} />
-              <directionalLight position={[3, 4, 5]} intensity={2.4} />
-              <directionalLight position={[-3, 2, -3]} intensity={1.5} />
+              <ambientLight intensity={0.65} />
+              <hemisphereLight args={["#f5f6ff", "#777080", 0.75]} />
+              <directionalLight position={[-3, 4, 4]} intensity={2.6} />
+              <directionalLight position={[3, 2, -3]} intensity={0.9} />
               <primitive object={scene} />
               <Controls scene={scene} command={command} />
             </Canvas>

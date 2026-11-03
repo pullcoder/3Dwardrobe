@@ -11,10 +11,13 @@ import type {
 import type { Category } from "../../types/domain";
 import { categories } from "../../types/domain";
 import type { BodyProfile } from "../body/types";
-import { bodyDimensions } from "./geometry";
-import { MannequinModel } from "./MannequinModel";
-import { CameraControls, ViewportBoundary } from "./MannequinViewport";
-import type { ViewCommand } from "./MannequinViewport";
+import { bodyDimensions } from "../mannequin/geometry";
+import { MannequinModel } from "../mannequin/MannequinModel";
+import {
+  CameraControls,
+  ViewportBoundary,
+} from "../mannequin/MannequinViewport";
+import type { ViewCommand } from "../mannequin/MannequinViewport";
 import { FittingModelCache, disposeScene } from "./fittingAssets";
 import { fitGarment } from "./fitting";
 import type { FitReport } from "./fitting";
@@ -147,7 +150,7 @@ export default function FittingViewport({
         Record<Category, { group: Group; report: FitReport }>
       > = {},
       failures: Partial<Record<Category, string>> = {};
-    for (const part of parts) {
+    for (const part of ["bottom", "top", "outer"] as const) {
       const entry = loaded[part];
       if (!entry || entry.resource.garment_id !== selected[part]) continue;
       try {
@@ -156,11 +159,13 @@ export default function FittingViewport({
           entry.resource,
           profile,
           adjustments[part],
-          part === "outer"
-            ? [result.top?.group, result.bottom?.group].filter(
-                (g): g is Group => !!g,
-              )
-            : [],
+          part === "top"
+            ? [result.bottom?.group].filter((g): g is Group => !!g)
+            : part === "outer"
+              ? [result.top?.group, result.bottom?.group].filter(
+                  (g): g is Group => !!g,
+                )
+              : [],
         );
       } catch (e) {
         failures[part] = e instanceof Error ? e.message : "모델 호환성 오류";

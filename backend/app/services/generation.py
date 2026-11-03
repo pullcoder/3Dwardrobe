@@ -1,5 +1,6 @@
 """영속 DB 작업 큐. API는 등록만 하며 별도 프로세스 워커가 GLB를 생성한다."""
 
+import logging
 import time
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -9,9 +10,25 @@ from sqlalchemy import delete, select, update
 from app.core.errors import AppError
 from app.models import Asset, Garment, GenerationJob
 from app.services.garment_mesh import TEMPLATES, VERSION, build_glb, resolve_spec, validate_glb
+from app.services.generation_runtime import worker_status
+from app.services.pants_silhouette import PANTS, analyze_pants, valid_shape
+from app.services.top_silhouette import analyze_top, valid_top
 
-B_ENGINE_AVAILABLE = False
+B_HIGH_FIDELITY_AVAILABLE = False
 ACTIVE = ("queued", "processing")
+
+
+def shape_asset(db, garment):
+    for slot in ("cutout_front", "front"):
+        asset = db.scalar(select(Asset).where(Asset.garment_id == garment.id, Asset.slot == slot))
+        if asset:
+            return asset
+    return None
+
+
+def b_available(db, garment):
+    # 전체 B 엔진은 여전히 없다. 검증된 바지 앞면 투영에만 제한한다.
+    return garment.data.get("garment_type") in PANTS and shape_asset(db, garment) is not None
 
 
 def now():
@@ -37,7 +54,8 @@ def generation_read(db, garment):
     return {
         "garment_id": garment.id,
         "selected_mode": mode,
-        "b_available": B_ENGINE_AVAILABLE,
+        "b_available": b_available(db, garment),
+        "b_high_fidelity_available": B_HIGH_FIDELITY_AVAILABLE,
         "photo_rights_status": garment.photo_rights_status,
         "detailed_rights_status": garment.detailed_rights_status,
         "output_rights_status": garment.output_rights_status,
@@ -67,6 +85,10 @@ def generation_read(db, garment):
         else None,
         "updated_at": garment.updated_at,
         "supported_types": list(TEMPLATES),
+        "runtime": worker_status(db),
+        "failure": {"stage": job.failure_stage, "exception_type": job.exception_type}
+        if job and job.status == "failed"
+        else None,
     }
 
 
@@ -105,10 +127,10 @@ def enqueue(db, garment):
         raise AppError(
             "RIGHTS_REQUIRED", "사진 처리 권한을 확인하거나 권리 검토를 진행해 주세요.", 403
         )
-    if mode == "B" and not B_ENGINE_AVAILABLE:
+    if mode == "B" and not b_available(db, garment):
         raise AppError(
             "B_UNAVAILABLE",
-            "B모드는 권한과 별개로 복원 기술 검증이 끝나지 않아 사용할 수 없습니다.",
+            "현재 B는 저장된 앞면과 세 권한 검증이 있는 바지의 투영 근사만 지원합니다.",
             503,
         )
     if garment.generation_status in ACTIVE:
@@ -118,6 +140,42 @@ def enqueue(db, garment):
         is not None
     )
     spec = resolve_spec(garment.data, garment.analysis, has_back)
+    if garment.data.get("garment_type") in PANTS:
+        asset = shape_asset(db, garment)
+        analysis = dict(garment.analysis)
+        shape = analysis.get("silhouette")
+        if asset and (not valid_shape(shape) or mode == "B"):
+            try:
+                shape = analyze_pants(asset.content)
+                analysis["silhouette"] = shape
+            except AppError as error:
+                if mode == "B":
+                    raise
+                spec["pants"]["warnings"].append(
+                    f"저장 사진의 외곽 분석 실패({error.code}). "
+                    "형태 분석용 누끼를 다시 입력해 주세요."
+                )
+        if valid_shape(shape):
+            spec = resolve_spec(garment.data, analysis, has_back)
+        if mode == "B":
+            spec["projection_asset_id"] = asset.id
+            spec["projection_bbox"] = shape["bbox"]
+            spec["projection_size"] = shape["image_size"]
+    if spec.get("top_panel"):
+        asset = shape_asset(db, garment)
+        analysis = dict(garment.analysis)
+        shape = analysis.get("silhouette")
+        if not valid_top(shape) and asset:
+            try:
+                shape = analyze_top(asset.content)
+                analysis["silhouette"] = shape
+            except AppError as error:
+                spec["top_panel"]["warnings"].append(
+                    f"사진 외곽 분석 실패({error.code}). 일반 패턴을 사용합니다."
+                )
+        if valid_top(shape):
+            spec = resolve_spec(garment.data, analysis, has_back)
+    spec["mode"] = mode
     job_id = str(uuid4())
     changed = db.execute(
         update(Garment)
@@ -284,10 +342,49 @@ def run_once(factory, generator=build_glb):
             .where(Garment.generation_job_id == job_id)
             .values(generation_status="processing", model_3d_status="processing", updated_at=now())
         )
-        snapshot = job.snapshot
+        snapshot = dict(job.snapshot)
+        if job.mode == "B":
+            asset = db.get(Asset, snapshot.get("projection_asset_id"))
+            if (
+                not asset
+                or asset.garment_id != garment.id
+                or asset.slot not in {"front", "cutout_front"}
+            ):
+                job.status, job.stage, job.error_code = "failed", "failed", "SOURCE_UNAVAILABLE"
+                job.claim_token, job.lease_until = None, None
+                garment.generation_status = garment.model_3d_status = "failed"
+                garment.generation_error = "SOURCE_UNAVAILABLE"
+                db.commit()
+                return True
+            snapshot["_front_png"] = asset.content
+            snapshot["_front_bbox"] = snapshot["projection_bbox"]
+            snapshot["_front_size"] = snapshot["projection_size"]
+            snapshot["_verified_projection"] = True
         db.commit()
+    phase = "mesh"
+
+    def progress(stage):
+        nonlocal phase
+        phase = stage
+        with factory() as db:
+            db.execute(
+                update(GenerationJob)
+                .where(
+                    GenerationJob.id == job_id,
+                    GenerationJob.claim_token == token,
+                    GenerationJob.status == "processing",
+                )
+                .values(stage=stage, updated_at=now())
+            )
+            db.commit()
+
     try:
-        content, metadata = generator(snapshot)
+        content, metadata = (
+            build_glb(snapshot, progress=progress)
+            if generator is build_glb
+            else generator(snapshot)
+        )
+        phase = "validating"
         with factory() as db:
             changed = db.execute(
                 update(GenerationJob)
@@ -302,6 +399,7 @@ def run_once(factory, generator=build_glb):
             if not changed.rowcount:
                 return True
         validate_glb(content)
+        phase = "saving"
         with factory() as db:
             job = db.get(GenerationJob, job_id)
             garment = db.get(Garment, job.garment_id) if job else None
@@ -321,6 +419,7 @@ def run_once(factory, generator=build_glb):
                 db.rollback()
                 return True
             asset_id = str(uuid4())
+            phase = "database_update"
             changed = db.execute(
                 update(Garment)
                 .where(
@@ -336,7 +435,7 @@ def run_once(factory, generator=build_glb):
                     model_3d_asset_id=asset_id,
                     generated_model_path=f"private:garment/{garment.id}/{asset_id}.glb",
                     model_format="glb",
-                    model_version=VERSION,
+                    model_version=metadata.get("version", VERSION),
                     generation_error=None,
                     updated_at=now(),
                 )
@@ -344,6 +443,7 @@ def run_once(factory, generator=build_glb):
             if not changed.rowcount or selected_mode(garment) != job.mode:
                 db.rollback()
                 return True
+            phase = "asset_storage"
             db.add(
                 Asset(
                     id=asset_id,
@@ -353,6 +453,7 @@ def run_once(factory, generator=build_glb):
                     mime="model/gltf-binary",
                 )
             )
+            db.flush()
             job.status, job.stage, job.result_metadata, job.updated_at = (
                 "completed",
                 "completed",
@@ -360,8 +461,10 @@ def run_once(factory, generator=build_glb):
                 now(),
             )
             job.claim_token, job.lease_until = None, None
+            phase = "database_commit"
             db.commit()
-    except Exception:
+    except Exception as error:
+        logging.error("generation_failed stage=%s exception_type=%s", phase, type(error).__name__)
         # 라이브러리 예외/사용자 입력·경로를 로그나 응답에 노출하지 않는다.
         with factory() as db:
             changed = db.execute(
@@ -375,6 +478,8 @@ def run_once(factory, generator=build_glb):
                     status="failed",
                     stage="failed",
                     error_code="GENERATION_FAILED",
+                    failure_stage=phase,
+                    exception_type=type(error).__name__[:80],
                     claim_token=None,
                     lease_until=None,
                     updated_at=now(),

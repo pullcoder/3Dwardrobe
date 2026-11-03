@@ -1,6 +1,7 @@
 """직접 제작한 일반 의류 파라미터 메시와 자체 포함 glTF 2.0 GLB.
 
-사진·로고·자유 서술문은 입력하지 않는다. 봉제/천 시뮬레이션 모델이 아니다.
+A는 사진 외곽 수치와 자체 패턴만 사용한다. B는 권한 검증된 바지의 앞면만
+제한적으로 투영한다. 봉제/천 시뮬레이션 모델이 아니다.
 """
 
 import json
@@ -9,8 +10,16 @@ import struct
 from datetime import UTC, datetime
 
 from app.core.errors import AppError
+from app.services.mesh_quality import inspect_meshes
+from app.services.pants_materials import generic_check, legacy_check
+from app.services.pants_materials import materials as pants_materials
+from app.services.pants_mesh import configure_pants, make_pants
+from app.services.pants_silhouette import PANTS, valid_shape
+from app.services.pattern_top import configure_top, make_top
+from app.services.top_silhouette import TOPS, valid_top
 
 VERSION = "stylefit-template-1.0"
+PANTS_VERSION = "stylefit-pants-2.2"
 TEMPLATES = {
     "티셔츠": ("top", 0.68),
     "셔츠": ("top", 0.73),
@@ -107,6 +116,11 @@ def resolve_spec(info, analysis, has_back=False):
         factor = {"cm": 0.01, "mm": 0.001, "inch": 0.0254}.get(m.get("unit"))
         if not key or not factor or m.get("target") != "garment" or m.get("value") is None:
             continue
+        if (
+            m.get("size")
+            and m["size"].strip().casefold() != (info.get("size") or "").strip().casefold()
+        ):
+            continue
         if m.get("kind") != ("flat" if key == "width" else "length"):
             continue
         if dims[key]["source"] != "estimated":
@@ -134,7 +148,8 @@ def resolve_spec(info, analysis, has_back=False):
         color_source = "estimated"
     neckline, _ = feature("neckline", "라운드넥")
     fit, _ = feature("fit", "regular")
-    return {
+    pattern, _ = feature("pattern")
+    spec = {
         "garment_type": garment_type,
         "category": category,
         "type_source": type_source,
@@ -145,16 +160,57 @@ def resolve_spec(info, analysis, has_back=False):
         if neckline in {"브이넥", "라운드넥", "카라", "터틀넥"}
         else "라운드넥",
         "sleeveless": sleeve in {"민소매", "sleeveless"},
-        "fit": fit if fit in {"slim", "regular", "loose", "슬림핏", "루즈핏"} else "regular",
+        "fit": fit
+        if fit
+        in {
+            "slim",
+            "regular",
+            "loose",
+            "슬림핏",
+            "루즈핏",
+            "wide",
+            "와이드",
+            "와이드핏",
+            "오버핏",
+            "oversized",
+        }
+        else "regular",
+        "pattern": "check"
+        if pattern in {"체크", "체크무늬", "plaid", "check", "checked"}
+        else "solid",
         "back_observed": bool(has_back or back),
         "analysis_views": [
             view for view in ("front", "back") if isinstance(analysis.get(view), dict)
         ],
     }
+    if garment_type in PANTS:
+        configure_pants(
+            spec,
+            info,
+            analysis.get("silhouette") if valid_shape(analysis.get("silhouette")) else None,
+        )
+    if garment_type in TOPS and not spec["sleeveless"]:
+        configure_top(
+            spec, analysis.get("silhouette") if valid_top(analysis.get("silhouette")) else None
+        )
+    fabric = (info.get("material") or "").lower()
+    spec["material_profile"] = {
+        "roughness": 0.96
+        if any(x in fabric for x in ("면", "cotton", "울", "wool", "denim"))
+        else 0.88,
+        "source": "visual_preset_from_declared_material"
+        if fabric not in {"", "미확인", "unknown"}
+        else "generic_estimate",
+    }
+    return spec
 
 
 def make_meshes(spec):
     """개구부가 있는 몸판·소매·바지통을 독립적인 삼각형 표면으로 제작한다."""
+    if spec.get("top_panel"):
+        return make_top(spec)
+    if spec.get("pants"):
+        return make_pants(spec)
     meshes = []
     n = 48
 
@@ -284,8 +340,18 @@ def make_meshes(spec):
     return meshes
 
 
-def build_glb(spec):
+def build_glb(spec, progress=None):
+    if progress:
+        progress("mesh")
     meshes = make_meshes(spec)
+    quality = inspect_meshes(meshes) if spec.get("top_panel") or spec.get("pants") else None
+    if quality and any(
+        quality[k]
+        for k in ("degenerate_triangles", "nonmanifold_edges", "inconsistent_winding_edges")
+    ):
+        raise AppError("INVALID_MESH", "메시 연결·면 방향 검사를 통과하지 못했습니다.", 422)
+    if progress:
+        progress("exporting")
     blob, views, accessors, gltf_meshes = bytearray(), [], [], []
 
     def accessor(values, code, component, size, target):
@@ -298,7 +364,7 @@ def build_glb(spec):
             "bufferView": len(views) - 1,
             "componentType": component,
             "count": len(values) // size,
-            "type": "VEC3" if size == 3 else "SCALAR",
+            "type": {1: "SCALAR", 2: "VEC2", 3: "VEC3"}[size],
         }
         if size == 3:
             entry.update(
@@ -311,6 +377,7 @@ def build_glb(spec):
         position = accessor(mesh["positions"], "f", 5126, 3, 34962)
         normal = accessor(mesh["normals"], "f", 5126, 3, 34962)
         indices = accessor(mesh["indices"], "H", 5123, 1, 34963)
+        uv = accessor(mesh["uvs"], "f", 5126, 2, 34962) if mesh.get("uvs") else None
         gltf_meshes.append(
             {
                 "name": mesh["name"],
@@ -324,6 +391,8 @@ def build_glb(spec):
                 ],
             }
         )
+        if uv is not None:
+            gltf_meshes[-1]["primitives"][0]["attributes"]["TEXCOORD_0"] = uv
     minimum = [min(min(m["positions"][i::3]) for m in meshes) for i in range(3)]
     maximum = [max(max(m["positions"][i::3]) for m in meshes) for i in range(3)]
     metadata = {
@@ -340,8 +409,12 @@ def build_glb(spec):
         ],
         "layer": {"top": 1, "bottom": 1, "outer": 2}[spec["category"]],
         "dimensions": spec["dimensions"],
-        "mode": "A",
-        "version": VERSION,
+        "mode": spec.get("mode", "A"),
+        "version": "stylefit-panel-3.0"
+        if spec.get("top_panel")
+        else PANTS_VERSION
+        if spec.get("pants")
+        else VERSION,
         "created_at": datetime.now(UTC).isoformat(),
         "color": spec["color"],
         "color_source": spec["color_source"],
@@ -352,7 +425,11 @@ def build_glb(spec):
         "material_names": ["generic_fabric"],
         "triangle_count": sum(len(m["indices"]) // 3 for m in meshes),
         "physical_simulation": False,
-        "fitting_contract": "stylefit.parts.v1",
+        "fitting_contract": "stylefit.panel.v3"
+        if spec.get("top_panel")
+        else "stylefit.pants.v2"
+        if spec.get("pants")
+        else "stylefit.parts.v1",
         "template_asset_source": "project_original_procedural",
         "warnings": [
             "깊이·후면·봉제 구조는 추정입니다.",
@@ -360,14 +437,65 @@ def build_glb(spec):
             "단순 메시 변형이며 원단 움직임·정밀 피팅을 재현하지 않습니다.",
         ],
     }
+    if spec.get("top_panel"):
+        metadata["top_panel"] = spec["top_panel"]
+        metadata["shape_source"] = (
+            "photo_silhouette_estimate" if spec["top_panel"]["observed"] else "estimated"
+        )
+        metadata["warnings"] = [
+            "앞뒤 패널을 연결한 직접 제작 템플릿의 근사입니다. AI 고정밀 복원이 아닙니다.",
+            "깊이·후면·주름·목 구조는 추정입니다.",
+            *spec["top_panel"]["warnings"],
+        ]
+    elif not spec.get("pants"):
+        metadata["warnings"].append(
+            "구형 절차적 근사 템플릿입니다. 연결 패널 템플릿은 아직 티셔츠만 지원합니다."
+        )
+    metadata["mesh_quality"] = quality
+    metadata["material_profile"] = spec.get(
+        "material_profile", {"roughness": 0.88, "source": "generic_estimate"}
+    )
+    texture, texture_policy = (
+        pants_materials(spec)
+        if spec.get("pants") or (spec.get("top_panel") and spec["pattern"] == "check")
+        else (None, "solid_color")
+    )
+    metadata["texture_policy"] = texture_policy
+    if spec.get("pants"):
+        metadata["pants"] = spec["pants"]
+        metadata["surface_detail"] = "flattened_cloth_section_drape_folded_edges"
+        metadata["detail_source"] = "procedural_estimate"
+        metadata["shape_source"] = (
+            "photo_silhouette_estimate" if spec["pants"]["observed"] else "estimated"
+        )
+        metadata["back_appearance"] = "generic_estimated"
+        metadata["reconstruction_fidelity"] = (
+            "single_view_projection_approximation"
+            if spec.get("mode") == "B"
+            else "generic_silhouette_approximation"
+        )
+        metadata["warnings"] = [
+            "사진 외곽은 투영 비율의 추정입니다. 깊이·후면·봉제 구조는 추정입니다.",
+            "고무줄 주름은 일반적인 절차적 표현이며 실제 주름 복원이 아닙니다.",
+            "B 앞면 투영도 고정밀·다중 시점 복원이 아니며 후면 패턴은 추정입니다."
+            if spec.get("mode") == "B"
+            else "체크는 자체 생성한 일반 패턴이며 원본 픽셀·로고·고유 그래픽을 복제하지 않습니다.",
+            *spec["pants"]["warnings"],
+        ]
 
     def linear(channel):
         c = int(channel, 16) / 255
         return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
-    color = [linear(spec["color"][i : i + 2]) for i in (1, 3, 5)] + [1]
+    color = [1, 1, 1, 1] if texture else [linear(spec["color"][i : i + 2]) for i in (1, 3, 5)] + [1]
+    image_view = None
+    if texture:
+        image_view = len(views)
+        views.append({"buffer": 0, "byteOffset": len(blob), "byteLength": len(texture)})
+        blob.extend(texture)
+        blob.extend(b"\0" * (-len(blob) % 4))
     document = {
-        "asset": {"version": "2.0", "generator": VERSION},
+        "asset": {"version": "2.0", "generator": metadata["version"]},
         "scene": 0,
         "scenes": [{"nodes": [0]}],
         "nodes": [
@@ -386,7 +514,7 @@ def build_glb(spec):
                 "pbrMetallicRoughness": {
                     "baseColorFactor": color,
                     "metallicFactor": 0,
-                    "roughnessFactor": 0.88,
+                    "roughnessFactor": spec.get("material_profile", {}).get("roughness", 0.88),
                 },
             }
         ],
@@ -394,6 +522,13 @@ def build_glb(spec):
         "bufferViews": views,
         "accessors": accessors,
     }
+    if image_view is not None:
+        document["images"] = [{"bufferView": image_view, "mimeType": "image/png"}]
+        document["samplers"] = [
+            {"wrapS": 33071, "wrapT": 33071, "magFilter": 9729, "minFilter": 9987}
+        ]
+        document["textures"] = [{"source": 0, "sampler": 0}]
+        document["materials"][0]["pbrMetallicRoughness"]["baseColorTexture"] = {"index": 0}
     json_bytes = json.dumps(
         document, ensure_ascii=False, separators=(",", ":"), allow_nan=False
     ).encode()
@@ -405,6 +540,8 @@ def build_glb(spec):
         + struct.pack("<I4s", len(blob), b"BIN\0")
         + blob
     )
+    if progress:
+        progress("validating")
     validate_glb(result)
     return result, metadata
 
@@ -418,6 +555,8 @@ def validate_glb(content):
     if kind != b"JSON" or json_length % 4:
         raise ValueError("invalid JSON chunk")
     doc = json.loads(content[20 : 20 + json_length])
+    if not all(doc.get(key) for key in ("meshes", "nodes", "materials", "scenes")):
+        raise ValueError("empty GLB scene")
     binary_length, kind = struct.unpack_from("<I4s", content, 20 + json_length)
     binary = content[28 + json_length :]
     if (
@@ -427,7 +566,21 @@ def validate_glb(content):
     ):
         raise ValueError("invalid binary chunk")
     if "images" in doc or "textures" in doc:
-        raise ValueError("A textures forbidden")
+        meta = doc["nodes"][0].get("extras", {})
+        if len(doc.get("images", [])) != 1 or len(doc.get("textures", [])) != 1:
+            raise ValueError("unexpected texture")
+        picture = doc["images"][0]
+        if "uri" in picture or picture.get("mimeType") != "image/png":
+            raise ValueError("embedded PNG required")
+        view = doc["bufferViews"][picture["bufferView"]]
+        png = binary[view["byteOffset"] : view["byteOffset"] + view["byteLength"]]
+        if meta.get("mode") == "A":
+            if meta.get("texture_policy") != "procedural_generic_check" or png != (
+                legacy_check if meta.get("version") == "stylefit-pants-2.0" else generic_check
+            )(meta["color"]):
+                raise ValueError("A source texture forbidden")
+        elif meta.get("mode") != "B" or meta.get("texture_policy") != "verified_front_projection":
+            raise ValueError("texture policy missing")
     for mesh in doc["meshes"]:
         primitive = mesh["primitives"][0]
         p = doc["accessors"][primitive["attributes"]["POSITION"]]
@@ -442,6 +595,14 @@ def validate_glb(content):
             values = struct.unpack_from(f"<{a['count'] * 3}{code}", binary, view["byteOffset"])
             if not all(math.isfinite(v) for v in values):
                 raise ValueError("non-finite vertex")
+        if "TEXCOORD_0" in primitive["attributes"]:
+            a = doc["accessors"][primitive["attributes"]["TEXCOORD_0"]]
+            if a["type"] != "VEC2" or a["count"] != p["count"]:
+                raise ValueError("invalid UV layout")
+            view = doc["bufferViews"][a["bufferView"]]
+            values = struct.unpack_from(f"<{a['count'] * 2}f", binary, view["byteOffset"])
+            if not all(math.isfinite(v) and -0.0001 <= v <= 1.0001 for v in values):
+                raise ValueError("invalid UV coordinates")
         a = doc["accessors"][primitive["indices"]]
         view = doc["bufferViews"][a["bufferView"]]
         ids = struct.unpack_from(f"<{a['count']}H", binary, view["byteOffset"])

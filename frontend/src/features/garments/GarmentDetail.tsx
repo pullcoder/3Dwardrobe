@@ -90,7 +90,7 @@ export function GarmentDetail({
         ),
       );
       setMessage(
-        "검토 요청을 접수했습니다. 담당자가 증빙의 세 권한을 검증해야 하며, B 생성 기술은 아직 비활성화되어 있습니다.",
+        "검토 요청을 접수했습니다. 담당자가 증빙의 세 권한을 검증해야 합니다. B는 저장 사진이 있는 바지 앞면 투영에 한해 제공하며 고정밀 복원은 아닙니다.",
       );
       setEvidenceFile(undefined);
       setEvidenceConsent(false);

@@ -6,7 +6,8 @@ import { useSession } from "../stores/SessionContext";
 import { categories } from "../types/domain";
 import type { Category } from "../types/domain";
 import { AccountPanel } from "../features/garments/AccountPanel";
-import { OutfitLibrary } from "../features/garments/OutfitLibrary";
+import { OutfitLibrary } from "../features/fitting/OutfitLibrary";
+import { RecommendationWorkspace } from "../features/recommendations/RecommendationWorkspace";
 import { GarmentDetail } from "../features/garments/GarmentDetail";
 import { deleteGarment } from "../api/garments";
 import type { GarmentDraft } from "../types/domain";
@@ -211,7 +212,16 @@ export function ClosetPage() {
           )}
         </>
       ) : (
-        <OutfitLibrary key={auth?.user.id ?? "guest"} />
+        <>
+          <OutfitLibrary key={auth?.user.id ?? "guest"} />
+          {auth ? (
+            <RecommendationWorkspace
+              key={auth.token}
+              token={auth.token}
+              savedOnly
+            />
+          ) : null}
+        </>
       )}
       {message ? (
         <p role="status" className="success">

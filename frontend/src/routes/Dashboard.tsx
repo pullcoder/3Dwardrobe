@@ -9,12 +9,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { FashionArt } from "../components/FashionArt";
-import {
-  ComingButton,
-  EmptyState,
-  LinkButton,
-  PageHeading,
-} from "../components/UI";
+import { EmptyState, LinkButton, PageHeading } from "../components/UI";
 import { PhotoPreview } from "../components/PhotoPicker";
 import { useSession } from "../stores/SessionContext";
 import { categories } from "../types/domain";
@@ -39,7 +34,7 @@ const steps = [
   {
     number: "03",
     title: "나만의 피팅 스튜디오",
-    text: "3D 마네킹을 확인해요. 의류 피팅은 연결 전입니다.",
+    text: "마네킹에 의류를 시각적으로 배치해 보세요.",
     icon: Box,
     link: "studio",
     label: "스튜디오 둘러보기",
@@ -56,10 +51,10 @@ export function Dashboard() {
         description="내 체형과 내 옷에서 시작하는 새로운 스타일의 가능성."
         action={
           <div className="heading-actions">
-            <ComingButton>
+            <LinkButton to="recommend">
               <Sparkles size={16} />
               AI 코디 추천
-            </ComingButton>
+            </LinkButton>
             <LinkButton to="upload" secondary>
               <Plus size={17} />
               의류 추가
@@ -91,7 +86,7 @@ export function Dashboard() {
             </a>
           </div>
           <span className="hero-disclaimer">
-            5단계 · 체형 분석·3D 의류·시각적 피팅·비공개 코디
+            6단계 · 내 옷장 기반 규칙 추천·시각적 피팅·비공개 코디
           </span>
         </div>
         <div className="hero-art">

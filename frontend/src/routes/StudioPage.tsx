@@ -5,7 +5,7 @@ import { GarmentDetail } from "../features/garments/GarmentDetail";
 import {
   OutfitLibrary,
   restoredProfile,
-} from "../features/garments/OutfitLibrary";
+} from "../features/fitting/OutfitLibrary";
 import { useSession } from "../stores/SessionContext";
 import { categories, measurementFields } from "../types/domain";
 import type { Category, Measurements } from "../types/domain";
@@ -21,10 +21,10 @@ import {
   validateMeasurements,
 } from "../features/body/measurements";
 import "../features/body/body.css";
-import "./studio.css";
+import "../features/fitting/studio.css";
 
 const FittingViewport = lazy(
-  () => import("../features/mannequin/FittingViewport"),
+  () => import("../features/fitting/FittingViewport"),
 );
 export function StudioPage() {
   const { auth } = useSession();

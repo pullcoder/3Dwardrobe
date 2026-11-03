@@ -39,7 +39,7 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
     },
     {
-      command: `"${python}" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log`,
+      command: `"${python}" -m app.local_dev --initialize-empty`,
       cwd: fileURLToPath(new URL("../backend", import.meta.url)),
       url: "http://127.0.0.1:8000/api/v1/health",
       reuseExistingServer: !process.env.CI,

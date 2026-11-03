@@ -53,3 +53,17 @@ models/weights/
 *.pkl
 *.safetensors
 *.npz
+
+# 개발 검증 산출물
+test-results/
+playwright-report/
+
+# 재현 스크립트로 준비하는 검증된 AI 가중치와 WASM (Git에는 넣지 않음)
+/frontend/public/mediapipe/
+/frontend/e2e/fixtures/*.jpg
+/backend/ocr/models/
+*.db
+*.db-journal
+*.partial
+/frontend/e2e/fixtures/garments/
+/backend/models/weights/

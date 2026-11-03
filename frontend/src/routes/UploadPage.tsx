@@ -7,8 +7,12 @@ import { Notice, PageHeading, Panel, PrivacyNote } from "../components/UI";
 import { AccountPanel } from "../features/garments/AccountPanel";
 import { AnalysisPanel } from "../features/garments/AnalysisPanel";
 import { GarmentEditor } from "../features/garments/GarmentEditor";
-import { blankInfo } from "../features/garments/types";
-import type { Analysis, GarmentInfo } from "../features/garments/types";
+import { blankInfo, defaultPolicy } from "../features/garments/types";
+import type {
+  Analysis,
+  GarmentInfo,
+  ReconstructionPolicy,
+} from "../features/garments/types";
 import { useSession } from "../stores/SessionContext";
 import type { Photos, PhotoSlot } from "../types/domain";
 
@@ -28,6 +32,9 @@ export function UploadPage() {
   const [rights, setRights] = useState(false);
   const [serverConsent, setServerConsent] = useState(false);
   const [storageConsent, setStorageConsent] = useState(false);
+  const [retainImages, setRetainImages] = useState(false);
+  const [sourceType, setSourceType] =
+    useState<ReconstructionPolicy["source_type"]>("other");
   const [info, setInfo] = useState<GarmentInfo>(blankInfo);
   const [analysis, setAnalysis] = useState<Analysis>({});
   const [cutouts, setCutouts] = useState<
@@ -54,6 +61,8 @@ export function UploadPage() {
     setInfo(blankInfo);
     setServerConsent(false);
     setStorageConsent(false);
+    setRetainImages(false);
+    setSourceType("other");
     setSaved(true);
   }
   async function validate() {
@@ -90,6 +99,7 @@ export function UploadPage() {
         cutouts,
         created_at: new Date().toISOString(),
         source: "user_entered",
+        reconstruction: { ...defaultPolicy, source_type: sourceType },
       },
     ]);
     complete();
@@ -112,6 +122,12 @@ export function UploadPage() {
         analysis,
         photos,
         cutouts,
+        {
+          source_type: sourceType,
+          original_image_retention: retainImages
+            ? "consented_storage"
+            : "temporary",
+        },
       );
       const hydrated = await hydrateGarment(auth.token, item);
       setGarments((items) => [...items, hydrated]);
@@ -172,8 +188,8 @@ export function UploadPage() {
       />
       <Notice>
         분류·배경 제거·OCR은 로컬 AI 모델로 처리합니다. 인식이 불명확한 값은
-        미확인으로 두고 직접 수정하세요. 3D 의류 생성과 가상 피팅은 아직
-        제공하지 않습니다.
+        미확인으로 두고 직접 수정하세요. 저장한 의류는 옷장에서 A모드 3D 복원을
+        사용할 수 있습니다. 가상 피팅은 아직 제공하지 않습니다.
       </Notice>
       {!locked ? <AccountPanel /> : null}
       <Panel
@@ -194,8 +210,30 @@ export function UploadPage() {
               }
             }}
           />
-          직접 촬영했거나 적법한 이용 권한이 있는 사진입니다.
+          직접 촬영 여부와 별개로, 사진 입력·처리에 필요한 적법한 이용 권한을
+          확인했습니다.
         </label>
+        <label className="field">
+          사진 출처
+          <select
+            value={sourceType}
+            disabled={locked}
+            onChange={(e) =>
+              setSourceType(
+                e.target.value as ReconstructionPolicy["source_type"],
+              )
+            }
+          >
+            <option value="other">기타</option>
+            <option value="self_photographed">직접 촬영</option>
+            <option value="licensed_image">허가된 이미지</option>
+          </select>
+        </label>
+        <p className="helper">
+          직접 촬영한 사실만으로 의류 그래픽·디자인 복원 및 생성 결과 이용
+          권한까지 확보되는 것은 아닙니다. 무단 수집·쇼핑몰 크롤링은 지원하지
+          않습니다.
+        </p>
         {rights ? (
           <div className="photo-grid">
             {slots.map((slot) => (
@@ -232,6 +270,18 @@ export function UploadPage() {
         title="03. 분석 결과 확인 및 정보 수정"
         subtitle="자동 제안은 추정값입니다. 수정한 정보는 원본 분석과 별도로 저장하고, 이후 3D 복원 입력으로 활용할 수 있습니다."
       >
+        <p>A모드 기본 · 고정밀 복원 권한: 미확인 · 생성 결과: 비공개</p>
+        <p className="helper">
+          A모드는 종류·색상·길이·일반 실루엣을 바탕으로 독립적인 메시와 재질을
+          생성하는 방식입니다. 원본 사진을 텍스처로 직접 복사하거나 보호되는
+          로고·일러스트·고유 그래픽을 무단 재현하지 않도록 설계합니다. 사진에
+          없는 치수는 추정값으로 표시합니다. A모드도 적법한 입력·처리 권한이
+          필요하며 침해 책임이 자동 면제되지 않습니다. 저장 후 옷장에서 지원
+          종류의 실제 3D 모델을 생성할 수 있습니다.
+        </p>
+        <button type="button" className="button secondary" disabled>
+          B모드 · 증빙 검증 및 복원 기능 준비 중
+        </button>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -246,9 +296,23 @@ export function UploadPage() {
               disabled={locked}
               onChange={(e) => setStorageConsent(e.target.checked)}
             />
-            선택한 원본·누끼·분석·수정 정보를 로컬 서버의 내 비공개 옷장에
-            저장합니다. 삭제할 때까지 보관합니다.
+            분석·수정 정보와 복원 정책을 내 비공개 옷장에 저장합니다.
           </label>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={retainImages}
+              disabled={locked}
+              onChange={(e) => setRetainImages(e.target.checked)}
+            />
+            선택한 원본·누끼도 비공개 저장하는 데 동의합니다. 삭제할 때까지
+            보관합니다.
+          </label>
+          <p className="helper">
+            원본 보관 기본값은 임시입니다. 사진 보관에 동의하지 않으면 서버는
+            사진·누끼를 저장하지 않고, 저장 성공 후 화면에서도 제거합니다. 원본
+            삭제만으로 권리 문제가 해결되지는 않습니다.
+          </p>
           <div className="action-row">
             <button
               type="button"

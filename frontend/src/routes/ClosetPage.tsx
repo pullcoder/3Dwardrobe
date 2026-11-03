@@ -6,6 +6,7 @@ import { useSession } from "../stores/SessionContext";
 import { categories } from "../types/domain";
 import type { Category } from "../types/domain";
 import { AccountPanel } from "../features/garments/AccountPanel";
+import { OutfitLibrary } from "../features/garments/OutfitLibrary";
 import { GarmentDetail } from "../features/garments/GarmentDetail";
 import { deleteGarment } from "../api/garments";
 import type { GarmentDraft } from "../types/domain";
@@ -60,7 +61,8 @@ export function ClosetPage() {
       />
       <Notice>
         서버 저장 의류는 로그인한 본인만 불러올 수 있습니다. 탭 초안은
-        새로고침하면 사라집니다. 코디 저장은 준비 중입니다.
+        새로고침하면 사라집니다. 스튜디오에서 저장한 비공개 코디도 불러올 수
+        있습니다.
       </Notice>
       <AccountPanel />
       {selected ? (
@@ -86,7 +88,7 @@ export function ClosetPage() {
           className={tab === "outfits" ? "active" : ""}
           onClick={() => setTab("outfits")}
         >
-          코디 보관함 <span>준비 중</span>
+          코디 보관함 <span>비공개</span>
         </button>
       </div>
       {tab === "garments" ? (
@@ -129,8 +131,18 @@ export function ClosetPage() {
                       alt={item.name}
                     />
                     <span className="photo-badge">
-                      {item.cutouts?.front ? "배경 제거" : "원본 사진"} · 3D
-                      없음
+                      {item.cutouts?.front
+                        ? "배경 제거"
+                        : item.photos.front
+                          ? "원본 사진"
+                          : "사진 비보관"}{" "}
+                      ·{" "}
+                      {item.model_3d_status === "completed"
+                        ? "3D 저장됨"
+                        : item.model_3d_status === "queued" ||
+                            item.model_3d_status === "processing"
+                          ? "3D 생성 중"
+                          : "3D 없음"}
                     </span>
                   </div>
                   <div className="garment-info">
@@ -165,6 +177,15 @@ export function ClosetPage() {
                       </button>
                     </div>
                   </div>
+                  {item.source === "server" ? (
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={() => setDetail(item.id)}
+                    >
+                      3D 복원
+                    </button>
+                  ) : null}
                 </article>
               ))}
             </div>
@@ -190,11 +211,7 @@ export function ClosetPage() {
           )}
         </>
       ) : (
-        <section className="panel">
-          <EmptyState title="코디를 담을 공간을 준비하고 있어요">
-            피팅과 코디 저장을 연결한 뒤 완성된 조합을 이곳에서 볼 수 있습니다.
-          </EmptyState>
-        </section>
+        <OutfitLibrary key={auth?.user.id ?? "guest"} />
       )}
       {message ? (
         <p role="status" className="success">

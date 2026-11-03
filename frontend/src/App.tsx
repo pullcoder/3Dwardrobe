@@ -129,7 +129,7 @@ export default function App() {
         <div className="sidebar-note">
           <span className="status-dot" /> LOCAL PREVIEW
           <p>나만의 스타일을 준비하는 공간</p>
-          <small>3단계 · 내 옷 분석과 비공개 옷장</small>
+          <small>5단계 · 개인화 3D 피팅과 비공개 코디</small>
         </div>
         <div className="profile">
           <div className="profile-avatar">S</div>

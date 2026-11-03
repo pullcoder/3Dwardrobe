@@ -7,17 +7,22 @@ export function PhotoPreview({
   alt,
   className,
 }: {
-  file: File;
+  file?: File;
   alt: string;
   className?: string;
 }) {
   const imageRef = useRef<HTMLImageElement>(null);
   useEffect(() => {
+    if (!file) return;
     const next = URL.createObjectURL(file);
     if (imageRef.current) imageRef.current.src = next;
     return () => URL.revokeObjectURL(next);
   }, [file]);
-  return <img ref={imageRef} className={className} alt={alt} />;
+  return file ? (
+    <img ref={imageRef} className={className} alt={alt} />
+  ) : (
+    <p>원본 사진 비보관</p>
+  );
 }
 
 export function PhotoPicker({

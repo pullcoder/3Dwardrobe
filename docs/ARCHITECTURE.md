@@ -1,5 +1,13 @@
 # 현재 아키텍처
 
+## 5단계 피팅·코디 경로
+
+React StudioPage: 탭의 사진/수동 체형 + 세 의류 슬롯 → 인증 GET fittings/resources → 권한/카테고리/메타데이터 검사 → 인증 GLB → 계정/화면 수명에 한정한 제한 캐시 → 지원 부위별 정점 복제/변형 → 신체 근사·내부 의류 방사선 검사 → 동일 Canvas의 MannequinModel + 의류 3벌.
+스튜디오 변경은 기본 탭 메모리다. 별도 동의+저장 시 최소 체형/출처·모드 → SavedMannequin 불변 스냅샷 → Fitting(현재 의류/모델 UUID, 조절값, revision) → Outfit(이름/저장 당시 마네킹·모델/조절값).
+원본 신체 사진/얼굴/관절은 서버로 보내지 않는다. 기존 BodyVault의 암호화 기기 저장과 별도 경로다. 서버 DB는 계정별 접근 제어이며 디스크 암호화/운영 HTTPS를 검증했다는 의미가 아니다.
+새 테이블 saved_mannequins/fittings/outfits는 users FK cascade, mannequin_id는 SET NULL이다. 의류 ID/모델 UUID는 스냅샷 JSON에 보존해 의류 삭제 후에도 코디가 오류 없이 누락 안내를 반환한다. 모든 참조를 쓰기/조회 시 서버에서 소유권·현재 권한과 대조한다. 피팅 PATCH는 새 마네킹을 만들고 이미 저장된 코디의 체형을 바꾸지 않는다.
+마이그레이션 d51e2a7b0903은 c41d8f03a902 다음이다. 본인 피팅·코디 삭제 후 참조가 없는 마네킹을 정리하며 계정 삭제로 전부 제거한다. 상세는 [PHASE5_DESIGN.md](PHASE5_DESIGN.md).
+
 ## 3단계 의류 경로
 
 ```text
@@ -24,7 +32,22 @@ SQLAlchemy/Alembic/PostgreSQL 드라이버를 도입했지만 현재 실행은 S
 원본 이미지 메타데이터는 제거하되 픽셀 해상도를 유지한 PNG를 DB binary로 보관한다. Asset UUID 이외 파일명을 보관하지 않고 공개 저장소가 없다.
 세션은 scrypt 암호 해시·SHA256 토큰 해시·12시간 만료. 클라이언트 토큰은 탭 메모리이며 로그아웃/새로고침 후 재로그인한다.
 모든 개인 데이터/이미지에서 소유권을 검사한다. 계정 삭제는 암호 확인 후 연관 행을 제거한다. 신고 검토 API는 별도 서버 관리자 키로 제한한다.
-`model_3d_status`/`model_3d_asset_id`만 확장 경계이며 의류 3D 생성/피팅을 구현하지 않았다.
+4단계 A 실제 메시/GLB 생성을 추가했다. 가상 피팅과 B 실제 고정밀 엔진은 미구현이다. 현재 구현은 [PHASE4_DESIGN.md](PHASE4_DESIGN.md)를 따른다.
+
+### 복원 정책 DB 변경
+
+Garment에 reconstruction_mode(A 기본), source_type(other 기본), rights_status(unverified 기본), license_reference(nullable), original_image_retention(temporary 기본), generated_model_path(nullable), model_visibility(private 고정), rights_reviewed_at(nullable)를 추가한다.
+등록 시 클라이언트는 출처·원본 보관 선택과 A 기본값만 제출한다. 증빙 참조 접수는 pending일 뿐 승인되지 않는다. 4단계 실제 문서의 관리자 검토에서 세 권한을 판단하고, 서버가 A/B를 자동 결정한다. B 엔진은 비활성화다. revision으로 편집·검토 신청 충돌을 차단한다.
+마이그레이션 b34a9c12d701은 기존 의류를 A/미확인/비공개로 초기화하며 과거 저장 동의는 consented_storage로 보존한다. 신규 temporary 등록은 누끼 포함 픽셀 데이터를 DB에 남기지 않는다.
+기존 DB는 API 시작 전 Alembic upgrade head가 필요하다. create_all은 기존 컬럼을 변경하지 않는다. model_3d_status/asset_id는 호환 유지하며 generated_model_path는 같은 모델 Asset을 가리키는 private: 내부 참조다.
+
+### 4단계 영속 작업·권한·GLB
+
+Garment에 photo_rights_status/detailed_rights_status/output_rights_status, rights_version, generation_status/job_id/error, model_format/version, updated_at을 추가한다. 생성 상태와 권한은 별도다. 이전 의류의 사진 권한은 unverified로 이전하며 새 등록은 기존 입력/처리 권한 확인 헤더로 confirmed(사용자 확인)를 기록한다.
+GenerationJob은 garment FK cascade, snapshot(픽셀 없는 일반 명세), mode/status/stage, rights_version/garment_revision, claim_token/lease_until/attempts, 결과 메타데이터/오류/시각을 보관한다. user_id는 소유 Garment를 통해 결정하며 클라이언트가 주입하지 않는다.
+RightsEvidence는 의류별 비공개 증빙 binary·MIME·SHA-256·시각, RightsReview는 증빙 ID·범위별 판단·근거·시각·권한 버전을 보관한다. 의류/계정 삭제 시 cascade 제거한다. Report.kind로 권리 신고/분석 오류를 구분한다.
+API는 작업만 등록한다. 별도 generation_worker가 DB 큐를 소비하며 파라미터 삼각형 메시→자체 포함 GLB 검증→Asset(slot=model_3d)에 저장한다. 공개 static/외부 AI/임시 사진 파일은 없다. GLB API와 기존 Asset 경로 모두 인증·현재 권한을 검사한다.
+관리자/소유자 변경과 워커 완료는 작업 토큰·권한 버전·의류 revision·현재 job ID 조건으로 결과 게시를 보호한다. 신규 마이그레이션 c41d8f03a902는 b34a9c12d701 다음이다. 자동 create_all로 기존 스키마가 갱신됐다고 가정하지 않는다.
 
 ## 2단계 브라우저 체형 경로
 
@@ -46,7 +69,7 @@ SQLAlchemy/Alembic/PostgreSQL 드라이버를 도입했지만 현재 실행은 S
 
 기본 얼굴은 직접 만든 중립 기하 형태다. FaceLandmarkProvider와 실제 FaceLandmarker를 주입할 어댑터만 제공하며 얼굴 가중치는 설치하지 않았다.
 기기 보관함은 평문 개인 데이터를 저장하지 않지만 서버 사용자 인증을 구현한 것은 아니다.
-3D 의류는 아직 적용하지 않는다. 스튜디오는 선택한 체형만 실제 3D로 표시한다.
+2단계 당시 스튜디오는 마네킹만 표시했다. 현재는 위 5단계 경로로 실제 GLB 의류를 같은 씬에 장착한다.
 
 ## 1단계 당시 흐름 (현재 의류 경로는 위 3단계 참조)
 

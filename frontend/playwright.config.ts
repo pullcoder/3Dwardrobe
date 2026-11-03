@@ -1,6 +1,17 @@
 import { defineConfig, devices } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 
+const python =
+  process.env.STYLEFIT_TEST_PYTHON ||
+  fileURLToPath(
+    new URL(
+      process.platform === "win32"
+        ? "../backend/.venv/Scripts/python.exe"
+        : "../backend/.venv/bin/python",
+      import.meta.url,
+    ),
+  );
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -28,7 +39,7 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
     },
     {
-      command: `"${fileURLToPath(new URL(process.platform === "win32" ? "../backend/.venv/Scripts/python.exe" : "../backend/.venv/bin/python", import.meta.url))}" -m uvicorn app.main:app --host 127.0.0.1 --port 8000`,
+      command: `"${python}" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log`,
       cwd: fileURLToPath(new URL("../backend", import.meta.url)),
       url: "http://127.0.0.1:8000/api/v1/health",
       reuseExistingServer: !process.env.CI,

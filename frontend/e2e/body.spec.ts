@@ -210,7 +210,7 @@ test("실제 3D 렌더링·시점·줌·드래그·치수 갱신·초기화", as
     "3D 피팅 스튜디오",
   );
   await expect(
-    page.getByRole("region", { name: "개인화 3D 마네킹" }),
+    page.getByRole("region", { name: "개인화 3D 피팅" }),
   ).toHaveAttribute("data-body-revision", /^180\/.*\/110\//);
   await page.goBack();
   await page

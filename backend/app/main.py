@@ -7,7 +7,9 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from app.api.v1.fittings import router as fitting_router
 from app.api.v1.garments import router as garment_router
+from app.api.v1.generation import router as generation_router
 from app.api.v1.routes import router
 from app.core.config import Settings
 from app.core.database import create_database
@@ -28,7 +30,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         yield
         engine.dispose()
 
-    app = FastAPI(title="StyleFit AI — Local Development", version="0.3.0", lifespan=lifespan)
+    app = FastAPI(title="StyleFit AI — Local Development", version="0.5.0", lifespan=lifespan)
     app.state.settings = settings
     app.state.engine = engine
     app.state.session_factory = factory
@@ -46,6 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "Authorization",
             "X-Image-Processing-Consent",
             "X-Image-Storage-Consent",
+            "X-Evidence-Storage-Consent",
         ],
     )
 
@@ -108,6 +111,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(router, prefix="/api/v1")
     app.include_router(garment_router, prefix="/api/v1")
+    app.include_router(generation_router, prefix="/api/v1")
+    app.include_router(fitting_router, prefix="/api/v1")
     return app
 
 

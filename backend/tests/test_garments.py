@@ -40,6 +40,7 @@ def payload():
     return {
         "info": {"name": "내 티셔츠", "category": "top"},
         "analysis": {"front": {"garment_type": "unknown"}},
+        "original_image_retention": "consented_storage",
         "images": {
             "front": {
                 "content_type": "image/png",
@@ -215,3 +216,126 @@ def test_missing_model_does_not_return_fake_analysis(client, monkeypatch):
     assert result.status_code == 503
     assert result.json()["error"]["code"] == "MODEL_UNAVAILABLE"
     assert client.get("/api/v1/garments", headers=headers).json() == []
+
+
+def test_temporary_default_discards_all_images_and_keeps_policy(client):
+    headers = account(client, "temporary")
+    body = payload()
+    body.pop("original_image_retention")
+    body["source_type"] = "self_photographed"
+    body["images"]["cutout_front"] = body["images"]["front"]
+    response = create(client, headers, body)
+    assert response.status_code == 201, response.text
+    item = response.json()
+    assert item["reconstruction_mode"] == "A"
+    assert item["rights_status"] == "unverified"
+    assert item["source_type"] == "self_photographed"
+    assert item["original_image_retention"] == "temporary"
+    assert item["assets"] == {}
+    assert item["model_visibility"] == "private"
+    assert item["generated_model_path"] is None
+    assert item["rights_reviewed_at"] is None
+    assert item["license_reference"] is None
+    with client.app.state.session_factory() as db:
+        assert db.scalar(select(func.count()).select_from(Asset)) == 0
+    assert client.get(f"/api/v1/garments/{item['id']}", headers=headers).json() == item
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("reconstruction_mode", "B"),
+        ("rights_status", "approved"),
+        ("model_visibility", "public"),
+        ("generated_model_path", "/fake.glb"),
+        ("rights_reviewed_at", "2026-11-03"),
+        ("license_reference", "self-approved"),
+    ],
+)
+def test_client_cannot_grant_rights_or_enable_b(client, field, value):
+    headers = account(client, "forged")
+    body = payload()
+    body[field] = value
+    assert create(client, headers, body).status_code == 400
+    item = create(client, headers).json()
+    assert (
+        client.patch(
+            f"/api/v1/garments/{item['id']}",
+            headers=headers,
+            json={"info": item["info"], "revision": 1, field: value},
+        ).status_code
+        == 400
+    )
+
+
+def test_review_reference_is_pending_not_approval_and_requires_ownership(client):
+    alice, bob = account(client, "reviewer"), account(client, "outsider")
+    item = create(client, alice).json()
+    path = f"/api/v1/garments/{item['id']}/rights-review"
+    body = {"license_reference": "권리자 이용허락 문서 DOC-123", "revision": 1}
+    assert client.post(path, json=body).status_code == 401
+    assert client.post(path, headers=bob, json=body).status_code == 404
+    assert (
+        client.post(path, headers=alice, json={**body, "license_reference": "   "}).status_code
+        == 400
+    )
+    assert (
+        client.post(path, headers=alice, json={**body, "rights_status": "approved"}).status_code
+        == 400
+    )
+    assert client.post(path, headers=alice, json={**body, "revision": 2}).status_code == 409
+    response = client.post(path, headers=alice, json=body)
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["rights_status"] == "pending"
+    assert result["reconstruction_mode"] == "A"
+    assert result["rights_reviewed_at"] is None
+    assert result["license_reference"] == body["license_reference"]
+    assert result["revision"] == 2
+    assert client.post(path, headers=alice, json={**body, "revision": 2}).status_code == 409
+    updated = client.patch(
+        f"/api/v1/garments/{item['id']}",
+        headers=alice,
+        json={"info": {**item["info"], "name": "수정한 옷"}, "revision": 2},
+    ).json()
+    assert updated["rights_status"] == "pending"
+    assert updated["reconstruction_mode"] == "A"
+
+
+def test_policy_migration_preserves_existing_consent_and_data(tmp_path, monkeypatch):
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine, inspect, text
+
+    url = f"sqlite:///{(tmp_path / 'migration.db').as_posix()}"
+    monkeypatch.setenv("DATABASE_URL", url)
+    config = Config("alembic.ini")
+    command.upgrade(config, "75730b3d1871")
+    engine = create_engine(url)
+    with engine.begin() as db:
+        db.execute(text("INSERT INTO users VALUES ('owner', 'owner', 'hashed')"))
+        db.execute(
+            text(
+                "INSERT INTO garments "
+                "(id,user_id,data,analysis,created_at,revision,model_3d_status) "
+                "VALUES ('old','owner','{}','{}','2026-11-03',1,'not_implemented')"
+            )
+        )
+        db.execute(
+            text("INSERT INTO garment_assets VALUES ('asset','old','front',X'0102','image/png')")
+        )
+    command.upgrade(config, "head")
+    with engine.connect() as db:
+        row = db.execute(text("SELECT * FROM garments")).mappings().one()
+        assert row["reconstruction_mode"] == "A"
+        assert row["rights_status"] == "unverified"
+        assert row["original_image_retention"] == "consented_storage"
+        assert row["model_visibility"] == "private"
+        assert row["rights_reviewed_at"] is None
+        assert db.execute(text("SELECT content FROM garment_assets")).scalar() == b"\x01\x02"
+    command.downgrade(config, "75730b3d1871")
+    assert "rights_status" not in {
+        column["name"] for column in inspect(engine).get_columns("garments")
+    }
+    command.upgrade(config, "head")
+    engine.dispose()

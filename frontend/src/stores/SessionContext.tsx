@@ -4,6 +4,8 @@ import type { GarmentDraft } from "../types/domain";
 import { createBodyProfiles } from "../features/body/measurements";
 import type { BodyMode, BodyProfiles } from "../features/body/types";
 import type { Auth } from "../features/garments/types";
+import { newStudioDraft } from "../types/fitting";
+import type { StudioDraft } from "../types/fitting";
 
 interface SessionState {
   auth: Auth | null;
@@ -17,6 +19,8 @@ interface SessionState {
   setBodyProfiles: Dispatch<SetStateAction<BodyProfiles>>;
   bodyMode: BodyMode;
   setBodyMode: Dispatch<SetStateAction<BodyMode>>;
+  studio: StudioDraft;
+  setStudio: Dispatch<SetStateAction<StudioDraft>>;
 }
 const SessionContext = createContext<SessionState | null>(null);
 
@@ -27,11 +31,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [bodyProfiles, setBodyProfiles] =
     useState<BodyProfiles>(createBodyProfiles);
   const [bodyMode, setBodyMode] = useState<BodyMode>("manual");
+  const [studio, setStudio] = useState<StudioDraft>(newStudioDraft);
   function clearSession() {
     setGarments([]);
     setBodyPhoto(undefined);
     setBodyProfiles(createBodyProfiles());
     setBodyMode("manual");
+    setStudio(newStudioDraft());
   }
   return (
     <SessionContext.Provider
@@ -47,6 +53,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setBodyProfiles,
         bodyMode,
         setBodyMode,
+        studio,
+        setStudio,
       }}
     >
       {children}

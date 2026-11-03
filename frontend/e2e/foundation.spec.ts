@@ -3,11 +3,19 @@ import type { Page } from "@playwright/test";
 
 async function navigate(page: Page, name: string) {
   const menu = page.getByRole("button", { name: "메뉴 열기", exact: true });
-  if (await menu.isVisible()) await menu.click();
+  const mobile = await page.evaluate(
+    () => matchMedia("(max-width: 820px)").matches,
+  );
+  if (mobile) {
+    // 이전 해시 이동의 메뉴 닫힘이 반영되기 전에 다음 클릭을 시도하지 않는다.
+    await expect(menu).toBeVisible();
+    await menu.click();
+  }
   await page
     .getByRole("navigation", { name: "주 메뉴" })
     .getByRole("link", { name, exact: true })
     .click();
+  if (mobile) await expect(menu).toBeVisible();
 }
 
 async function makePhoto(page: Page) {
@@ -110,12 +118,14 @@ test("사진 선택 → 실제 API 검증 → 초안 → 필터 → 슬롯 → �
   await expect(page.getByText("조건에 맞는 옷이 없어요")).toBeVisible();
   await page.getByRole("textbox", { name: "의류 이름 검색" }).fill("");
   await navigate(page, "피팅 스튜디오");
-  await page.getByLabel(/^상의/).selectOption({ label: "내 라벤더 셔츠" });
+  await page
+    .getByRole("combobox", { name: "상의", exact: true })
+    .selectOption({ label: "내 라벤더 셔츠 (3D 미준비)" });
   await expect(
     page.getByRole("button", { name: "상의 선택 해제" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /피팅 결과 저장/ }),
+    page.getByRole("button", { name: "현재 코디 저장", exact: true }),
   ).toBeDisabled();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({

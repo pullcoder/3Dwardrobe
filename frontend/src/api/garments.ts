@@ -6,13 +6,19 @@ import type {
   GarmentInfo,
   OcrResult,
   StoredGarment,
+  ReconstructionPolicy,
+  GenerationState,
 } from "../features/garments/types";
 
 const base = (
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api/v1"
 ).replace(/\/$/, "");
 
-async function request(path: string, token?: string, init: RequestInit = {}) {
+export async function request(
+  path: string,
+  token?: string,
+  init: RequestInit = {},
+) {
   const response = await fetch(`${base}${path}`, {
     ...init,
     cache: "no-store",
@@ -106,6 +112,10 @@ export async function saveGarment(
   analysis: Analysis,
   photos: Photos,
   cutouts: Partial<Record<"front" | "back", File>>,
+  policy: Pick<
+    ReconstructionPolicy,
+    "source_type" | "original_image_retention"
+  >,
 ): Promise<StoredGarment> {
   const entries = [
     ...Object.entries(photos),
@@ -128,7 +138,7 @@ export async function saveGarment(
         "X-Upload-Rights": "confirmed",
         "X-Image-Storage-Consent": "confirmed",
       },
-      body: JSON.stringify({ info, analysis, images }),
+      body: JSON.stringify({ info, analysis, images, ...policy }),
     })
   ).json();
 }
@@ -146,7 +156,6 @@ export async function hydrateGarment(
     }),
   );
   const files = Object.fromEntries(entries);
-  if (!files.front) throw new Error("앞면 사진이 없는 의류입니다.");
   return {
     id: item.id,
     ...item.info,
@@ -163,6 +172,17 @@ export async function hydrateGarment(
     source: "server",
     revision: item.revision,
     user_id: item.user_id,
+    model_3d_status: item.model_3d_status,
+    reconstruction: {
+      reconstruction_mode: item.reconstruction_mode,
+      source_type: item.source_type,
+      rights_status: item.rights_status,
+      license_reference: item.license_reference,
+      original_image_retention: item.original_image_retention,
+      generated_model_path: item.generated_model_path,
+      model_visibility: item.model_visibility,
+      rights_reviewed_at: item.rights_reviewed_at,
+    },
   };
 }
 export async function loadWardrobe(token: string) {
@@ -191,16 +211,32 @@ export async function updateGarment(
 export async function deleteGarment(token: string, id: string) {
   await request(`/garments/${id}`, token, { method: "DELETE" });
 }
+export async function requestRightsReview(
+  token: string,
+  id: string,
+  license_reference: string,
+  revision: number,
+  evidence_id?: string,
+): Promise<StoredGarment> {
+  return (
+    await request(`/garments/${id}/rights-review`, token, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ license_reference, revision, evidence_id }),
+    })
+  ).json();
+}
 export async function reportIssue(
   token: string,
   reason: string,
   garment_id?: string,
+  kind: "rights" | "analysis" = "rights",
 ): Promise<{ id: string; status: string }> {
   return (
     await request("/reports", token, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason, garment_id }),
+      body: JSON.stringify({ reason, garment_id, kind }),
     })
   ).json();
 }
@@ -208,4 +244,71 @@ export async function getReports(
   token: string,
 ): Promise<{ id: string; status: string }[]> {
   return (await request("/reports", token)).json();
+}
+
+export async function getGeneration(
+  token: string,
+  id: string,
+  signal?: AbortSignal,
+): Promise<GenerationState> {
+  return (
+    await request(`/garments/${id}/generation-status`, token, { signal })
+  ).json();
+}
+export async function generateModel(
+  token: string,
+  id: string,
+): Promise<GenerationState> {
+  return (
+    await request(`/garments/${id}/generate-3d`, token, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    })
+  ).json();
+}
+export async function getModel(
+  token: string,
+  id: string,
+  signal?: AbortSignal,
+): Promise<ArrayBuffer> {
+  return (
+    await request(`/garments/${id}/model`, token, { signal })
+  ).arrayBuffer();
+}
+export async function deleteModel(token: string, id: string) {
+  await request(`/garments/${id}/model`, token, { method: "DELETE" });
+}
+export async function confirmPhotoRights(token: string, id: string) {
+  await request(`/garments/${id}/photo-rights-confirmation`, token, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Upload-Rights": "confirmed",
+    },
+    body: "{}",
+  });
+}
+export async function withdrawRights(token: string, id: string) {
+  await request(`/garments/${id}/rights-withdraw`, token, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+}
+export async function uploadRightsEvidence(
+  token: string,
+  id: string,
+  file: File,
+): Promise<{ id: string; sha256: string }> {
+  return (
+    await request(`/garments/${id}/rights-evidence`, token, {
+      method: "POST",
+      headers: {
+        "Content-Type": file.type,
+        "X-Evidence-Storage-Consent": "confirmed",
+      },
+      body: file,
+    })
+  ).json();
 }

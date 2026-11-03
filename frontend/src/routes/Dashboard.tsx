@@ -91,7 +91,7 @@ export function Dashboard() {
             </a>
           </div>
           <span className="hero-disclaimer">
-            3단계 · 체형 분석·3D 마네킹·의류 AI·비공개 옷장
+            5단계 · 체형 분석·3D 의류·시각적 피팅·비공개 코디
           </span>
         </div>
         <div className="hero-art">

@@ -15,7 +15,14 @@ from starlette.concurrency import run_in_threadpool
 
 from app.core.errors import AppError
 from app.models import Asset, Garment, LoginSession, Report, User
-from app.schemas.garments import Credentials, GarmentCreate, GarmentPatch, ReportInput, ReportStatus
+from app.schemas.garments import (
+    Credentials,
+    GarmentCreate,
+    GarmentPatch,
+    ReportInput,
+    ReportStatus,
+    RightsReviewRequest,
+)
 from app.services.auth import (
     current_user,
     issue_session,
@@ -25,6 +32,8 @@ from app.services.auth import (
     verify_password,
 )
 from app.services.garment_ai import INFERENCE_LOCK, image_from_bytes
+from app.services.generation import invalidate_generation, model_asset, suspend_rights
+from app.services.reconstruction import POLICY_FIELDS, request_rights_review
 from app.services.uploads import validate_image
 
 router = APIRouter()
@@ -54,7 +63,25 @@ def garment_read(db, garment):
         "analysis_status": garment.analysis.get("processing_status", "manual"),
         "model_3d_status": garment.model_3d_status,
         "model_3d_asset_id": garment.model_3d_asset_id,
-        "assets": {a.slot: {"id": a.id, "content_type": a.mime} for a in assets},
+        **{field: getattr(garment, field) for field in POLICY_FIELDS},
+        **{
+            field: getattr(garment, field)
+            for field in (
+                "photo_rights_status",
+                "detailed_rights_status",
+                "output_rights_status",
+                "rights_version",
+                "generation_status",
+                "generation_job_id",
+                "model_format",
+                "model_version",
+                "generation_error",
+                "updated_at",
+            )
+        },
+        "assets": {
+            a.slot: {"id": a.id, "content_type": a.mime} for a in assets if a.slot != "model_3d"
+        },
     }
 
 
@@ -191,6 +218,10 @@ def create_garment(body: GarmentCreate, request: Request):
             data=body.info.model_dump(),
             analysis=body.analysis,
             created_at=datetime.now(UTC).isoformat(),
+            source_type=body.source_type,
+            original_image_retention=body.original_image_retention,
+            photo_rights_status="confirmed",
+            updated_at=datetime.now(UTC).isoformat(),
         )
         db.add(garment)
         db.flush()
@@ -212,15 +243,17 @@ def create_garment(body: GarmentCreate, request: Request):
                 buffer = BytesIO()
                 # 원본 해상도·디코딩된 픽셀을 보존하고 메타데이터만 제거한다.
                 clean.save(buffer, format="PNG")
-            db.add(
-                Asset(
-                    id=str(uuid4()),
-                    garment_id=garment.id,
-                    slot=slot,
-                    content=buffer.getvalue(),
-                    mime="image/png",
+            # 임시 선택 시 누끼를 포함한 모든 픽셀 파생물도 요청 종료 후 폐기한다.
+            if body.original_image_retention == "consented_storage":
+                db.add(
+                    Asset(
+                        id=str(uuid4()),
+                        garment_id=garment.id,
+                        slot=slot,
+                        content=buffer.getvalue(),
+                        mime="image/png",
+                    )
                 )
-            )
         db.commit()
         return garment_read(db, garment)
 
@@ -250,7 +283,8 @@ def get_garment(garment_id: str, request: Request):
 def patch_garment(garment_id: str, body: GarmentPatch, request: Request):
     with database(request) as db:
         user = current_user(request, db)
-        owned(db, user.id, garment_id)
+        garment = owned(db, user.id, garment_id)
+        invalidate_generation(db, garment, "GARMENT_UPDATED")
         result = db.execute(
             update(Garment)
             .where(
@@ -276,6 +310,16 @@ def delete_garment(garment_id: str, request: Request):
         db.commit()
 
 
+@router.post("/garments/{garment_id}/rights-review")
+def submit_rights_review(garment_id: str, body: RightsReviewRequest, request: Request):
+    with database(request) as db:
+        user = current_user(request, db)
+        garment = owned(db, user.id, garment_id)
+        request_rights_review(db, garment, body)
+        db.commit()
+        return garment_read(db, garment)
+
+
 @router.get("/assets/{asset_id}")
 def get_asset(asset_id: str, request: Request):
     with database(request) as db:
@@ -285,6 +329,10 @@ def get_asset(asset_id: str, request: Request):
         )
         if not asset:
             raise AppError("NOT_FOUND", "이미지를 찾을 수 없습니다.", 404)
+        if asset.slot == "model_3d":
+            current = model_asset(db, db.get(Garment, asset.garment_id))
+            if current.id != asset.id:
+                raise AppError("NOT_FOUND", "모델을 찾을 수 없습니다.", 404)
         return Response(
             asset.content,
             media_type=asset.mime,
@@ -297,7 +345,9 @@ def create_report(body: ReportInput, request: Request):
     with database(request) as db:
         user = current_user(request, db)
         if body.garment_id:
-            owned(db, user.id, body.garment_id)
+            garment = owned(db, user.id, body.garment_id)
+            if body.kind == "rights":
+                suspend_rights(db, garment, "RIGHTS_REPORTED")
         row = Report(id=str(uuid4()), user_id=user.id, **body.model_dump())
         db.add(row)
         db.commit()

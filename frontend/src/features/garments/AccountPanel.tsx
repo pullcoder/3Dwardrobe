@@ -9,7 +9,7 @@ import { Panel } from "../../components/UI";
 import { useSession } from "../../stores/SessionContext";
 
 export function AccountPanel() {
-  const { auth, setAuth, setGarments } = useSession();
+  const { auth, setAuth, setGarments, clearSession } = useSession();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -65,7 +65,7 @@ export function AccountPanel() {
                 void run(async () => {
                   await logout(auth.token);
                   setAuth(null);
-                  setGarments([]);
+                  clearSession();
                 })
               }
             >
@@ -87,7 +87,7 @@ export function AccountPanel() {
                 void run(async () => {
                   await removeAccount(auth.token, auth.user.username, password);
                   setAuth(null);
-                  setGarments([]);
+                  clearSession();
                   setConfirm(false);
                   setMessage("계정·의류·사진·신고 데이터를 삭제했습니다.");
                 });

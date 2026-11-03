@@ -1,4 +1,4 @@
-# StyleFit AI — 3단계 API
+# StyleFit AI — 3~5단계 API
 
 Base: `http://127.0.0.1:8000/api/v1`. loopback 개발 전용이며 production 설정을 거절한다. `/docs`에 요청 스키마가 있다.
 신체 사진·관절·체형을 전송하는 API는 없다. 체형 분석과 암호화 기기 보관함은 기존 브라우저 경로를 유지한다.
@@ -45,22 +45,30 @@ OCR은 명시된 단일 수치 행만 파싱하고 여러 사이즈 열의 대�
 ```
 
 이미지 slot: front 필수, back/size/material/cutout_front/cutout_back 선택. 한 요청에 한 벌. 누끼는 PNG만 허용한다.
+추가 입력: `reconstruction_mode:A`(기본, B 거절), `source_type:self_photographed|licensed_image|other`(기본 other), `original_image_retention:temporary|consented_storage`(기본 temporary).
+기존 저장 동의 헤더는 의류 정보 저장에 필요하다. 별도 consented_storage 선택 시만 사진·누끼를 보관한다. temporary는 형식 검증 후 모든 이미지를 폐기하고 assets는 빈 객체다.
+등록/PATCH의 미정의 필드는 거절하며 클라이언트는 승인 상태·검토 시각·모델 경로·공개 범위를 부여할 수 없다.
 이미지별 10MiB/20MP, 전체 HTTP body 85MB, 분석 JSON 200KB, 로컬 계정 의류 100벌 제한.
-저장 시 EXIF·위치·파일명 제거, 디코딩된 원본 픽셀/해상도를 PNG로 보존한다. 저장 누끼는 추론 출력 최대 변 1600px다.
+원본 보관 동의 시 EXIF·위치·파일명 제거, 디코딩된 원본 픽셀/해상도를 PNG로 보존한다. 저장 누끼는 추론 출력 최대 변 1600px다.
 `info`는 이름/category/종류/색/패턴/소매/넥라인/핏/시각특징/사이즈/소재/구성/치수/설명이며 길이·범위 검증한다.
 치수 `{label,size,value,unit:cm|mm|inch|unknown,kind:flat|circumference|length|unknown,target:garment|body|unknown,source:ocr|user_entered}`.
 소재 `{name,percent:null|0..100,source:ocr|user_entered}`. 합계 불일치는 UI에서 원본 확인을 안내한다.
 
-응답: id/user_id/info/analysis/created_at/revision/analysis_status/assets 및 미래 `model_3d_status:not_implemented`, `model_3d_asset_id:null`.
+응답: id/user_id/info/analysis/created_at/revision/analysis_status/assets 및 model_3d_status/model_3d_asset_id. 4단계 생성 성공 후 completed와 비공개 모델 Asset UUID가 연결된다.
+추가 응답: reconstruction_mode, source_type, rights_status(unverified/pending/approved/rejected), license_reference(null 또는 참조), original_image_retention, generated_model_path(null), model_visibility(private), rights_reviewed_at(null).
+4단계 추가 응답에는 photo_rights_status, detailed_rights_status, output_rights_status, rights_version, generation_status, generation_job_id, model_format, model_version, generation_error, updated_at이 있다. source_type은 사용자 진술이며 승인 증명이 아니다. 신규 사진 권한은 헤더 확인으로 confirmed를 기록하며, 관리자의 문서 검증 verified와 구분한다.
 분석 JSON은 클라이언트가 제출한 원본 제안의 스냅샷이며 서버 서명된 증명 자료가 아니다.
 
 - `GET /garments`: 본인 목록. 이미지 내용 대신 slot별 Asset UUID/MIME.
 - `GET /garments/{id}`: 본인 상세. 다른 계정/없는 의류는 모두 404.
 - `PATCH /garments/{id}`: `{info,revision}`. 수정 정보만 변경하고 원본 분석 유지. 낙관적 잠금 충돌 409.
 - `DELETE /garments/{id}`: 의류·관련 이미지·분석/수정 정보 트랜잭션 삭제. 204.
+- `POST /garments/{id}/rights-review`: 본인 Bearer + `{license_reference,revision,evidence_id?:증빙UUID}`. 참조 공백 제거 후 5~1000자. pending, A 유지, 검토 시각 null, revision +1. 참조 접수 자체는 승인되지 않으며 기존 모델/진행 작업을 무효화한다. 타인/없는 의류·증빙 404, 중복 pending/오래된 revision 409. URL을 자동 조회하지 않는다.
 - `GET /assets/{id}`: Bearer와 소유권 확인 후 이미지. 공개 정적 파일 없음. UUID 파일명/PNG/no-store/nosniff.
 
 ## 신고·관리
+
+`POST /reports`에는 kind:rights|analysis(기본 rights)를 추가한다. 본인 의류의 권리 신고는 세 권한을 disputed로 변경하고 생성 작업 취소·모델 삭제·다운로드 차단을 수행한다. 분석 오류 신고는 권한을 변경하지 않는다.
 
 - `POST /reports`: 인증 후 `{reason,garment_id?:본인 의류 ID}`. 접수 `{id,status:received}`.
 - `GET /reports`: 본인 신고 ID/상태만.
@@ -72,3 +80,70 @@ OCR은 명시된 단일 수치 행만 파싱하고 여러 사이즈 열의 대�
 모든 응답 no-store/nosniff. Host/Origin/클라이언트 loopback 제한. 비밀·사진·OCR 원문 애플리케이션 로그 없음.
 실행 시 `--no-access-log` 사용. 로컬 HTTP를 외부 서버 전송에 그대로 확장하지 않는다. 운영 HTTPS는 미검증이다.
 기본 오류 `{error:{code,message}}`. 400 입력, 401 로그인, 403 접근, 404 리소스, 409 충돌, 413 크기, 415 형식, 429 동시 분석/인증 제한, 503 모델/추론 실패.
+
+## 4단계 생성·비공개 GLB
+
+기존 prefix `/api/v1`를 유지한다. 아래 경로는 본인 Bearer가 필요하며 다른 사람/없는 의류는 404다.
+
+| 경로 | 요청·응답 |
+|---|---|
+| POST /garments/{id}/generate-3d | JSON `{}`만 허용. 권한·지원 종류·치수를 검사하고 영속 큐 등록 후 202 상태 응답. 중복 활성 작업 409, 권한 미확인/분쟁 403, 미지원/치수 422, B 선택이나 엔진 미준비 503 |
+| GET /garments/{id}/generation-status | 생성 상태·실제 단계·오류 코드·모델 준비 여부·메타데이터 |
+| GET /garments/{id}/rights-status | 같은 상태 응답에 세 권한·버전·자동 선택 모드·B 가용성 포함 |
+| GET /garments/{id}/model | 현재 권한/소유권 재검사 후 model/gltf-binary, attachment UUID.glb, no-store. 생성 전/무효/삭제 모델 404 |
+| DELETE /garments/{id}/model | 모델 제거 및 대기/진행 작업 취소, 204 |
+| POST /garments/{id}/photo-rights-confirmation | JSON `{}` + X-Upload-Rights:confirmed. 과거 unverified 사진 권한을 사용자 확인 confirmed로 기록한다. verified를 직접 입력할 수 없다. 신고/거절/철회는 관리자 재검토 전 403 |
+| POST /garments/{id}/rights-withdraw | JSON `{}`. 세 권한 disputed, 작업 취소·모델 제거, 204 |
+| POST /garments/{id}/rights-evidence | 원시 PDF/JPG/PNG/WebP + MIME + X-Evidence-Storage-Consent:confirmed. 최대 5MiB, 의류당 10개. `{id,sha256}`. 비공개 DB 저장이며 URL 수집/진위 자동 판정 없음 |
+
+상태 응답 필드: garment_id, selected_mode(A/B/null), b_available(false), photo_rights_status, detailed_rights_status, output_rights_status, rights_version, rights_reviewed_at, generation_status, job_id, stage, generation_error, model_ready, model_format, model_version, model_metadata, updated_at, supported_types.
+권한은 unverified/confirmed(사진 사용자 확인)/pending/verified(관리자 증빙 검증)/rejected/disputed, 생성은 idle/queued/processing/completed/failed/cancelled다. 단계는 실제 mesh/validating/saving 등이며 백분율을 만들지 않는다. 워커가 없으면 queued를 유지한다.
+사진 confirmed/verified + 나머지 미검증이면 A, 세 범위 verified면 B, 미확인 사진/분쟁/거절은 보류한다. B 엔진은 없으며 승인됐다는 이유만으로 가짜 생성하거나 A로 바꾸지 않는다.
+모델 원본은 Asset binary이며 generated_model_path는 private:garment/... 내부 참조다. 공개 파일 경로가 아니다. 이미지 assets 응답에는 model_3d 슬롯을 넣지 않고 별도 모델 API로 조회한다. 기존 /assets/{id}로 모델 UUID를 접근해도 현재 권한·모델 상태를 검사한다.
+
+## 관리자 권리 검토 (로컬 전용)
+
+모든 경로는 서버의 X-Admin-Review-Key가 필요하며 빈 설정이면 거절한다. 이 키를 프런트엔드에 제공하지 않는다.
+
+- GET /admin/garments/{id}/rights-evidence: 증빙 ID·해시·MIME·접수 시각 목록.
+- GET /admin/rights-evidence/{id}: 실제 문서 attachment, application/octet-stream/no-store/nosniff. 문서를 앱에서 자동 실행/렌더링하지 않는다.
+- PATCH /admin/garments/{id}/rights-review: `{photo_rights_status,detailed_rights_status,output_rights_status,evidence_id?,notes,rights_version}`. 각 범위 unverified/verified/rejected/disputed. notes 공백 제거 후 10~2000자. 하나라도 verified면 해당 의류의 실제 evidence_id 필수. 담당자가 실제 문서를 확인하고 범위별 근거를 기록해야 한다. 버전 충돌 409. 변경 시 이전 작업/모델 무효화, rights_version +1, 검토 시각·불변 판단 이력 기록.
+- GET /admin/garments/{id}/rights-reviews: 범위별 판단·증빙 참조·근거·시각 이력.
+
+증빙의 존재·형식은 법적 허락의 진위를 보증하지 않는다. 담당자 검토가 필요하며 운영용 담당자별 인증·자동 만료/지역/기간 조건 집행은 아직 없다.
+
+## 5단계 비공개 피팅·코디
+
+기존 `/api/v1` prefix와 Bearer 인증을 유지한다. user_id·모델 경로·권한 상태를 클라이언트에서 받지 않는다. 다른 계정/없는 데이터는 404다.
+
+| 경로 | 실제 동작 |
+|---|---|
+| GET /fittings/resources/{garment_id} | 본인 의류·현재 모델 권한·좌표/단위/카테고리 검사. garment_id/name/category/info/model_asset_id/metadata/reconstruction_mode/rights_version/status:available. 모델이 없거나 철회된 경우 404, 메타데이터 불일치 422 |
+| POST /fittings | 아래 입력을 저장하고 201. 새 불변 마네킹 스냅샷과 현재 모델 UUID를 고정 |
+| GET /fittings/{id} | 본인 피팅 상태/마네킹/슬롯/조절값/누락 안내 |
+| PATCH /fittings/{id} | 같은 입력 + revision. 새 마네킹 스냅샷·슬롯/조절값·revision +1. 충돌 409 |
+| DELETE /fittings/{id} | 피팅 삭제, 어느 코디/피팅에서도 참조하지 않는 마네킹 정리. 204 |
+| POST /outfits | `{fitting_id,name}`. 본인 피팅의 현재 유효 상태를 별도 코디로 복사, 201. 이름 1~80자, 빈 조합 400, 누락/무효 상태 409 |
+| GET /outfits | 본인 코디 목록(최대 100개) |
+| GET /outfits/{id} | 본인 코디·저장 당시 마네킹/모델 참조·조절값·누락 안내 |
+| DELETE /outfits/{id} | 코디 삭제, 불필요 마네킹 정리. 204 |
+
+피팅 입력 예시:
+```json
+{
+  "body_storage_consent": true,
+  "mannequin": {
+    "mode": "manual",
+    "values": {"height":175,"shoulder":42,"chest":94,"waist":78,"hip":98,"arm":56,"leg":81},
+    "origins": {"height":"user_entered"}
+  },
+  "slots": {"top":"GARMENT_UUID","bottom":null,"outer":null},
+  "adjustments": {"top":{"chest":1.04,"clearance":0.012,"hidden":false}}
+}
+```
+
+수치는 cm이며 미입력은 null이다. mode manual/photo, origins는 각 수치의 estimated/user_entered만 허용한다. 사진/랜드마크/얼굴/비율/임의 필드를 거절한다. 별도 body_storage_consent가 없으면 400이며 저장하지 않는다. 키·어깨·가슴/허리/골반·팔·다리 범위는 기존 화면과 같고 팔/다리와 키의 비율도 검증한다.
+슬롯 키는 top/bottom/outer, 카테고리 불일치 422, 타인/없는 모델 404. 조절값: shoulder/chest/waist/hip 0.8~1.25, sleeve/length 0.75~1.25, offset_y ±0.12m, clearance 0~0.06m, hidden boolean. 유한 수치만 허용하고 미정의 필드는 400이다. 계정당 피팅/코디 각각 100개 제한.
+응답: id, mannequin_id, mannequin(mode/values/origins), slots, adjustments, created_at, warnings, revision(피팅만), name(코디만).
+슬롯은 null 또는 available 리소스다. 저장 후 의류 삭제/모델 재생성/권한 철회 시 `{garment_id,status:unavailable,reason}`과 warnings를 반환하며 나머지 슬롯은 정상 복원한다. 상태 확인을 생략하고 이전 파일을 반환하지 않는다. B 모델은 세 권한 검증이 필요하며 A 권한으로 우회하지 않는다.
+API는 장착 설정/최소 체형을 저장한다. 실제 정점 변형과 3D 렌더링은 클라이언트에서 수행하며 물리 시뮬레이션 결과를 저장한 것으로 표시하지 않는다.

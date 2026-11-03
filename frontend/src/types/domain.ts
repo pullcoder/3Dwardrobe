@@ -1,4 +1,8 @@
-import type { Analysis, GarmentInfo } from "../features/garments/types";
+import type {
+  Analysis,
+  GarmentInfo,
+  ReconstructionPolicy,
+} from "../features/garments/types";
 
 export type Route =
   | "home"
@@ -51,7 +55,9 @@ export interface GarmentDraft {
   color: string;
   material: string;
   size: string;
-  photos: Photos & { front: File };
+  photos: Photos;
+  reconstruction?: ReconstructionPolicy;
+  model_3d_status?: string;
   created_at: string;
   source: "user_entered" | "server";
   user_id?: string;

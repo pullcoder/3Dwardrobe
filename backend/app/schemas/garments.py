@@ -53,19 +53,42 @@ class ImageInput(BaseModel):
 
 
 class GarmentCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     info: GarmentInfo
     analysis: dict = Field(default_factory=dict)
     images: dict[str, ImageInput]
+    reconstruction_mode: Literal["A"] = "A"
+    source_type: Literal["self_photographed", "licensed_image", "other"] = "other"
+    original_image_retention: Literal["temporary", "consented_storage"] = "temporary"
 
 
 class GarmentPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     info: GarmentInfo
     revision: int = Field(ge=1)
+
+
+class RightsReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    license_reference: str = Field(min_length=5, max_length=1000)
+    revision: int = Field(ge=1)
+    evidence_id: str | None = Field(default=None, max_length=36)
+
+
+class RightsDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    photo_rights_status: Literal["unverified", "verified", "rejected", "disputed"]
+    detailed_rights_status: Literal["unverified", "verified", "rejected", "disputed"]
+    output_rights_status: Literal["unverified", "verified", "rejected", "disputed"]
+    evidence_id: str | None = Field(default=None, max_length=36)
+    notes: str = Field(min_length=10, max_length=2000)
+    rights_version: int = Field(ge=1)
 
 
 class ReportInput(BaseModel):
     garment_id: str | None = None
     reason: str = Field(min_length=5, max_length=2000)
+    kind: Literal["rights", "analysis"] = "rights"
 
 
 class ReportStatus(BaseModel):

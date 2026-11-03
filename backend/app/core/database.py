@@ -12,7 +12,7 @@ def create_database(url: str):
     options = {"connect_args": {"check_same_thread": False}} if url.startswith("sqlite") else {}
     if ":memory:" in url:
         options["poolclass"] = StaticPool
-    engine = create_engine(url, **options)
+    engine = create_engine(url, hide_parameters=True, **options)
     if url.startswith("sqlite"):
 
         @event.listens_for(engine, "connect")

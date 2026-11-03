@@ -86,13 +86,17 @@ def test_rejects_invalid_content(client, data, mime, code):
 
 
 def test_size_limit_even_without_declared_length():
-    with TestClient(create_app(Settings(_env_file=None, max_upload_bytes=8))) as client:
+    with TestClient(
+        create_app(Settings(_env_file=None, database_url="sqlite:///:memory:", max_upload_bytes=8))
+    ) as client:
         response = upload(client, iter([b"1234", b"56789"]))
     assert response.status_code == 413
 
 
 def test_pixel_limit():
-    with TestClient(create_app(Settings(_env_file=None, max_image_pixels=10))) as client:
+    with TestClient(
+        create_app(Settings(_env_file=None, database_url="sqlite:///:memory:", max_image_pixels=10))
+    ) as client:
         assert upload(client, photo()).status_code == 413
 
 
@@ -103,7 +107,10 @@ def test_cross_origin_blocked(client):
 
 
 def test_remote_client_blocked():
-    with TestClient(create_app(Settings(_env_file=None)), client=("192.0.2.1", 1234)) as client:
+    with TestClient(
+        create_app(Settings(_env_file=None, database_url="sqlite:///:memory:")),
+        client=("192.0.2.1", 1234),
+    ) as client:
         assert client.get("/api/v1/health").status_code == 403
 
 

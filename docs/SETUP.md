@@ -4,6 +4,8 @@ Python 3.12와 Node 24/npm을 사용한다. 3단계 CPU 추론은 PyTorch·CLIP�
 
 ## 백엔드
 
+복원 정책 변경 후 기존 DB에는 서버 실행 전에 `backend/`에서 `.venv/Scripts/python -m alembic upgrade head`를 적용한다. Alembic 버전 없이 기존 3단계 테이블만 있는 DB는 스키마 비교 후 초기 revision 75730b3d1871에 stamp하고 upgrade한다. 데이터가 있는 DB를 삭제해서 초기화하지 않는다.
+
 루트에서:
 ```powershell
 python -m venv backend/.venv
@@ -22,6 +24,13 @@ API: http://127.0.0.1:8000/docs . `APP_ENV=production`은 현재 설정에서 �
 로컬 개발 API는 원격 클라이언트를 거절한다. 모바일 실기기 원격 접속용 배포를 하지 않는다.
 
 ## 프론트
+
+5단계는 마이그레이션 d51e2a7b0903까지 적용한 API를 사용한다. 로그인→옷장 불러오기→피팅 스튜디오→실제 GLB가 생성된 의류 선택 순으로 실행한다. 새 GLB 생성에는 기존 4단계 워커가 필요하지만 이미 생성된 의류를 입히는 데는 워커가 필요하지 않다.
+기본 편집은 탭 메모리다. 코디/피팅을 저장할 때만 최소 체형 수치 서버 저장 동의를 선택한다. 저장한 코디는 스튜디오 또는 옷장의 코디 보관함에서 불러온다. 사진 체형 원본/관절은 전송하지 않는다.
+검사: `npx playwright test e2e/fitting.spec.ts`는 실제 워커로 GLB를 만들고 데스크톱/모바일의 장착·저장·재조회·철회·로딩 실패·터치를 확인한다. 테스트 전 `npm run prepare:test-garments`를 실행하거나 전체 `npm run test:e2e`를 사용한다. 검증용 Python은 STYLEFIT_TEST_PYTHON으로 지정할 수 있다.
+
+4단계 생성에는 API 외에 `backend/`의 별도 터미널에서 `.venv/Scripts/python -m app.generation_worker`를 실행한다. 같은 DATABASE_URL을 사용해야 하며 워커가 없으면 queued 상태다. `--once`는 작업 한 건만 처리하는 점검용이다. 기존 DB는 API/워커 시작 전 Alembic upgrade head로 c41d8f03a902까지 적용한다.
+직접 작성한 A 템플릿 생성은 기본 requirements.txt만으로 가능하며 외부 생성 가중치/GPU를 요구하지 않는다. 기존 3단계 AI 분석까지 실행하려면 requirements.lock.txt와 prepare_models.py의 가중치가 필요하다.
 
 새 터미널, 루트에서:
 ```powershell
@@ -67,6 +76,9 @@ npm run test:e2e
 ```
 
 Playwright는 로컬 프론트/API를 띄워 실제 파일 업로드 경로를 검사한다. 기존 5173/8000 서버가 있으면 재사용한다.
+별도 검증 가상환경을 쓰면 PowerShell에서 `$env:STYLEFIT_TEST_PYTHON = '사용할 python.exe 절대 경로'`를 설정한다. E2E 설정·합성 fixture 준비·4단계 테스트 워커가 이 경로를 사용하며 기본은 backend/.venv다. 루트 .env를 자동으로 테스트 프로세스 환경에 주입하는 기능은 아니다.
+4단계 단독 브라우저 검사: `npx playwright test e2e/generation.spec.ts`. 이 테스트는 실제 별도 워커를 시작/종료하며 상의·바지·겉옷을 생성한다. API와 같은 DATABASE_URL을 지정한다. 사용자 데이터가 없는 별도 테스트 DB를 권장한다.
+검증 산출물: backend에서 `.venv/Scripts/python scripts/verify_generation.py` → Git 제외 storage/phase4-validation/{tshirt,pants,jacket}.glb 및 results.json. 별도 Three.js 재로딩 검사는 frontend에서 `node scripts/verify-garment-glb.mjs`로 실행한다.
 실행 결과·제약은 `docs/VERIFICATION.md`를 참고한다.
 
 ## 2단계 모델과 테스트 준비

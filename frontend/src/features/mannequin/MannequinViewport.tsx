@@ -11,7 +11,7 @@ export interface ViewCommand {
   view: "front" | "side" | "back" | "reset" | "zoom_in" | "zoom_out";
   sequence: number;
 }
-function CameraControls({
+export function CameraControls({
   height,
   command,
 }: {
@@ -63,7 +63,7 @@ function CameraControls({
   return null;
 }
 
-class ViewportBoundary extends Component<
+export class ViewportBoundary extends Component<
   { children: ReactNode },
   { failed: boolean }
 > {

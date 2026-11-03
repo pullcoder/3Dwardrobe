@@ -69,8 +69,9 @@ test("실제 의류 AI → OCR → 수정 → 비공개 저장 → 재로그인 
     .fill("파란 티셔츠");
   await page.getByLabel("색상", { exact: true }).fill("사용자 확인 파랑");
   await page
-    .getByRole("checkbox", { name: /선택한 원본·누끼·분석·수정 정보를/ })
+    .getByRole("checkbox", { name: /분석·수정 정보와 복원 정책을/ })
     .check();
+  await page.getByRole("checkbox", { name: /선택한 원본·누끼도/ }).check();
   await page
     .getByRole("button", { name: "디지털 옷장에 저장", exact: true })
     .click();

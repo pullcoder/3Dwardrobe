@@ -30,6 +30,9 @@ const states = {
   cancelled: "취소됨",
 };
 const stageText: Record<string, string> = {
+  preprocessing: "의류 이미지 전처리",
+  inference: "AI 모델 생성",
+  postprocessing: "메시 후처리·착용 구조 검사",
   mesh: "메시·재질 생성",
   exporting: "GLB 내보내기",
   validating: "GLB 검증",
@@ -58,6 +61,9 @@ export function GenerationPanel({
   const [refresh, setRefresh] = useState(0);
   const [shapePhoto, setShapePhoto] = useState<File>();
   const [shapeConsent, setShapeConsent] = useState(false);
+  const [engine, setEngine] = useState<"template" | "triposr" | "trellis2">(
+    "template",
+  );
   useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
@@ -138,7 +144,8 @@ export function GenerationPanel({
       <h3>의류 3D 복원</h3>
       <p>
         A모드: 일반적인 형태·색상을 반영한 독립 3D 의류. B모드: 증빙으로 이용
-        권한이 검증된 바지 앞면의 제한적 투영 근사. 고정밀 복원은 아닙니다.
+        권한이 검증된 티셔츠·바지 사진의 색과 무늬를 3D 표면에 반영합니다. 앞·뒤
+        사진이 있으면 각각 사용하며, 고정밀 입체 복원은 아닙니다.
       </p>
       <p className="helper">
         A도 적법한 입력·처리 권한이 필요하며 모든 디자인의 법적 안전성을
@@ -154,6 +161,60 @@ export function GenerationPanel({
             {rightsText[state.output_rights_status]}
           </p>
           <p>자동 선택 모드: {state.selected_mode ?? "권한 확인 후 결정"}</p>
+          {state.selected_mode === "A" ? (
+            <p className="helper">
+              현재는 일반형 A모드입니다. 사진의 색·무늬까지 반영하려면 앞면·뒷면
+              사진을 보관하고 아래 권리 검토에서 세 권한을 검증해야 합니다.
+            </p>
+          ) : null}
+          <label className="field">
+            3D 생성 엔진
+            <select
+              value={engine}
+              disabled={busy || active}
+              onChange={(event) =>
+                setEngine(event.target.value as typeof engine)
+              }
+            >
+              {(
+                state.engines ?? [
+                  { id: "template", name: "기존 의류 템플릿", available: true },
+                ]
+              ).map((item) => (
+                <option
+                  key={item.id}
+                  value={item.id}
+                  disabled={!item.available}
+                >
+                  {item.name}
+                  {item.available ? "" : " · 사용 불가"}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="helper">
+            엔진과 A/B 권리 모드는 별개입니다. AI 생성만으로 원본 디자인의 이용
+            권한이나 착용 구조가 검증되지 않습니다.
+          </p>
+          {state.engines
+            ?.filter((item) => !item.available)
+            .map((item) => (
+              <details key={item.id}>
+                <summary>{item.name} 사용 불가 사유</summary>
+                <p>{item.requirements}</p>
+                <ul>
+                  {item.reasons.map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+              </details>
+            ))}
+          {state.model_metadata?.generation_kind === "ai" ? (
+            <p role="status">
+              AI 생성 메시입니다. 착용 구조가 미검증되어 자동 피팅을 보류합니다.
+              피팅하려면 기존 의류 템플릿으로 다시 생성하세요.
+            </p>
+          ) : null}
           <p role="status">
             작업 상태: {states[state.generation_status]}
             {state.generation_status === "processing"
@@ -209,8 +270,9 @@ export function GenerationPanel({
           ) : null}
           {bUnavailable ? (
             <p>
-              이 의류의 B 복원은 미지원입니다. 바지 앞면 투영만 저장 사진과 세
-              권한 검증이 갖춰진 경우에 지원합니다.
+              사진 외형을 반영하려면 티셔츠·바지 앞면 사진을 보관하고 세 권한을
+              검증해야 합니다. 사진이 없는 기존 등록은 보관 동의로 다시
+              등록하세요.
             </p>
           ) : null}
           {["티셔츠", "청바지", "슬랙스", "반바지"].includes(garmentType) ? (
@@ -322,7 +384,7 @@ export function GenerationPanel({
                 bUnavailable ||
                 unsupported
               }
-              onClick={() => void act(() => generateModel(token, id))}
+              onClick={() => void act(() => generateModel(token, id, engine))}
             >
               {state.generation_status === "failed"
                 ? "3D 생성 재시도"
@@ -367,6 +429,16 @@ export function GenerationPanel({
           {state.model_metadata ? (
             <details>
               <summary>모델 정보와 추정 치수</summary>
+              {state.model_metadata.photo_appearance ? (
+                <p>
+                  사진 외형 반영 · 앞면: 검증된 사진 · 뒷면:{" "}
+                  {state.model_metadata.photo_appearance.back ===
+                  "verified_photo"
+                    ? "검증된 사진"
+                    : "사진 없음, 일반 원단 추정"}
+                  . 옆면과 깊이는 추정입니다.
+                </p>
+              ) : null}
               <p>
                 단위: 미터 · Y-up / Z-front · 후면/깊이 추정 · 물리 시뮬레이션
                 없음

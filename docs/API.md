@@ -1,5 +1,18 @@
 # StyleFit AI — 3~5단계 API
 
+## 로컬 템플릿 함수 계약
+
+새 6종 편집기는 HTTP endpoint를 추가하지 않는다. `frontend/src/features/templates/catalog.ts`의 `resolveTemplateInput`이 `{category,template,parameters}`의 정규화 0~1 값을 검사하고 `createTemplateGarment`가 기존 체형으로 재사용 가능한 Three.js 메시를 생성한다. wide_pants 별칭을 지원하며 서버 생성/권리 모드와 별개다. 상세 항목은 [CLOTHING_TEMPLATE_WORKBENCH.md](CLOTHING_TEMPLATE_WORKBENCH.md).
+
+## 사진 외형 확장 (2026-11-04)
+
+기존 generate-3d/template 요청을 그대로 사용하며 B는 보관된 티셔츠·바지의 앞뒤 사진을 지원한다. 세 권한 검증/소유권·revision·취소 검사를 유지한다. `model_metadata.photo_appearance`는 front/back 출처, geometry, uv_origin, background_edge_bleed를 제공한다. 모델 버전은 `stylefit-photo-projection-1.0`. 후면 누락은 estimated이며 A는 원본 픽셀을 사용하지 않는다. 상세는 [PHOTO_APPEARANCE.md](PHOTO_APPEARANCE.md).
+
+## AI 생성 엔진 경계 (2026-11-04)
+
+`POST /garments/{id}/generate-3d`: 선택 JSON `engine: template | triposr | trellis2`. `{}`는 template. 미감사/하드웨어 미충족 AI는 503 ENGINE_UNAVAILABLE이며 이전 모델을 무효화하지 않는다. 소유권·현재 권한 검사는 동일하다.
+상태 응답에 `engines[{id,name,available,kind,requirements,license_status,reasons}]`, `selected_engine` 추가. postprocessing은 processing의 후처리 단계다. AI 결과 `generation_kind=ai`와 기존 procedural을 구분한다. AI 피팅 자원 요청은 422 GARMENT_STRUCTURE_UNVERIFIED. [상태·한계](AI_GENERATION_ENGINES.md).
+
 Base: `http://127.0.0.1:8000/api/v1`. loopback 개발 전용이며 production 설정을 거절한다. `/docs`에 요청 스키마가 있다.
 신체 사진·관절·체형을 전송하는 API는 없다. 체형 분석과 암호화 기기 보관함은 기존 브라우저 경로를 유지한다.
 

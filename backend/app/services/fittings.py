@@ -8,6 +8,7 @@ from app.core.errors import AppError
 from app.models import Fitting, Garment, GenerationJob, Outfit, SavedMannequin
 from app.schemas.fittings import FitAdjustment
 from app.services.generation import model_asset, now
+from app.services.generation_engines import fitting_gate
 
 PARTS = ("top", "bottom", "outer")
 
@@ -24,6 +25,8 @@ def resource(db, user_id, garment_id):
     asset = model_asset(db, garment)
     job = db.get(GenerationJob, garment.generation_job_id) if garment.generation_job_id else None
     metadata = job.result_metadata if job else None
+    if metadata:
+        fitting_gate(metadata)
     if (
         not metadata
         or metadata.get("unit") != "meter"

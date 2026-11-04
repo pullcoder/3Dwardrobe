@@ -151,6 +151,16 @@ export interface Auth {
 export type RightStatus =
   "unverified" | "confirmed" | "pending" | "verified" | "rejected" | "disputed";
 export interface ModelMetadata {
+  engine?: "template" | "triposr" | "trellis2";
+  generation_kind?: "procedural" | "ai";
+  wearable?: boolean;
+  photo_appearance?: {
+    front: "verified_photo";
+    back: "verified_photo" | "estimated";
+    geometry: string;
+    uv_origin: "top_left";
+    background_edge_bleed: boolean;
+  };
   category: Category;
   garment_type: string;
   unit: "meter";
@@ -185,6 +195,15 @@ export interface ModelMetadata {
   };
 }
 export interface GenerationState {
+  selected_engine?: "template" | "triposr" | "trellis2";
+  engines?: {
+    id: "template" | "triposr" | "trellis2";
+    name: string;
+    available: boolean;
+    requirements: string;
+    license_status: string;
+    reasons: string[];
+  }[];
   garment_id: string;
   selected_mode: "A" | "B" | null;
   b_available: boolean;

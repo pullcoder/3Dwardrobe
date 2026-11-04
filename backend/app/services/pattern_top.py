@@ -160,7 +160,13 @@ def make_top(spec):
             neck_y = h - (0.065 if face == 1 else 0.018) * math.sqrt(max(0, 1 - (x / neck) ** 2))
             rib = 0.0018 * math.exp(-(((y - neck_y + 0.008) / 0.006) ** 2)) if abs(x) < neck else 0
             positions.extend([x, y, face * (thickness + drape + rib)])
-            uvs.extend([0.5 + x / (extent * 2.1), max(0, min(1, y / h))])
+            if spec.get("mode") == "B":
+                image_u = max(0, min(1, 0.5 + face * x / (extent * 2)))
+                uvs.extend(
+                    [image_u * 0.496 + (0.002 if face == 1 else 0.502), max(0, min(1, 1 - y / h))]
+                )
+            else:
+                uvs.extend([0.5 + x / (extent * 2.1), max(0, min(1, y / h))])
     for a, b, c in faces:
         indices.extend([a, b, c, count + a, count + c, count + b])
     # 어깨/몸판 옆선/소매 윗선·아랫선을 동일 정점에 연결한다. 개구부는 열린 채 둔다.

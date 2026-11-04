@@ -225,7 +225,11 @@ def make_pants(spec):
                         positions.extend([x, h * (1 - t), z])
                         image_u = 0.5 + x / full_width
                         uvs.extend(
-                            [image_u * 0.5 + (0 if face == 1 else 0.5), 1 - t]
+                            [
+                                (image_u if face == 1 else 1 - image_u) * 0.496
+                                + (0.002 if face == 1 else 0.502),
+                                t,
+                            ]
                             if spec.get("mode") == "B"
                             else [image_u, 1 - t]
                         )

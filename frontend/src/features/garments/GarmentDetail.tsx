@@ -90,7 +90,7 @@ export function GarmentDetail({
         ),
       );
       setMessage(
-        "검토 요청을 접수했습니다. 담당자가 증빙의 세 권한을 검증해야 합니다. B는 저장 사진이 있는 바지 앞면 투영에 한해 제공하며 고정밀 복원은 아닙니다.",
+        "검토 요청을 접수했습니다. 담당자가 증빙의 세 권한을 검증해야 합니다. 검증 후 저장된 티셔츠·바지 사진의 앞뒤 외형을 반영할 수 있습니다. 고정밀 입체 복원은 아닙니다.",
       );
       setEvidenceFile(undefined);
       setEvidenceConsent(false);
@@ -188,8 +188,9 @@ export function GarmentDetail({
       </p>
       <p className="helper">
         B모드는 사진 처리, 보호되는 그래픽·디자인 복원, 생성 결과 저장·이용의 세
-        권한을 증빙으로 검증한 뒤에만 제공할 예정입니다. 담당자가 제출 문서와 세
-        권한을 검토합니다. AI 분류나 체크박스는 승인 근거를 대신하지 않습니다.
+        권한을 증빙으로 검증한 뒤 티셔츠·바지의 사진 외형을 반영합니다. 담당자가
+        제출 문서와 세 권한을 검토합니다. AI 분류나 체크박스는 승인 근거를
+        대신하지 않습니다.
       </p>
       <button type="button" className="button secondary" disabled>
         B모드 고정밀 복원 · 준비 중

@@ -1,7 +1,7 @@
 import { Component, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
-import { Box3, Mesh, Vector3 } from "three";
+import { Box3, Mesh, Texture, Vector3 } from "three";
 import type { Group, Material } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -13,15 +13,25 @@ interface Command {
 }
 
 function disposeModel(group: Group) {
+  const textures = new Set<Texture>();
   group.traverse((object) => {
     if (object instanceof Mesh) {
       object.geometry.dispose();
       const materials: Material[] = Array.isArray(object.material)
         ? object.material
         : [object.material];
-      for (const material of materials) material.dispose();
+      for (const material of materials) {
+        for (const value of Object.values(material))
+          if (value instanceof Texture) textures.add(value);
+        material.dispose();
+      }
     }
   });
+  for (const texture of textures) {
+    const source = texture.source.data as { close?: () => void } | undefined;
+    source?.close?.();
+    texture.dispose();
+  }
 }
 
 function Controls({ scene, command }: { scene: Group; command: Command }) {
@@ -144,11 +154,11 @@ export default function GarmentModelViewer({ bytes }: { bytes: ArrayBuffer }) {
               gl={{ antialias: true, preserveDrawingBuffer: true }}
               fallback={<p role="alert">WebGL이 필요합니다.</p>}
             >
-              <color attach="background" args={["#eee9f3"]} />
-              <ambientLight intensity={0.65} />
-              <hemisphereLight args={["#f5f6ff", "#777080", 0.75]} />
-              <directionalLight position={[-3, 4, 4]} intensity={2.6} />
-              <directionalLight position={[3, 2, -3]} intensity={0.9} />
+              <color attach="background" args={["#eceff2"]} />
+              <ambientLight intensity={0.3} />
+              <hemisphereLight args={["#ffffff", "#858585", 0.6]} />
+              <directionalLight position={[-3, 4, 4]} intensity={1.7} />
+              <directionalLight position={[3, 2, -3]} intensity={0.7} />
               <primitive object={scene} />
               <Controls scene={scene} command={command} />
             </Canvas>

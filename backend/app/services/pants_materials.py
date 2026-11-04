@@ -4,7 +4,9 @@ from functools import lru_cache
 from io import BytesIO
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageOps
+from PIL import Image, ImageDraw
+
+from app.services.photo_materials import photo_atlas
 
 
 def legacy_check(color):
@@ -55,31 +57,13 @@ def generic_check(color):
 def materials(spec):
     mode = spec.get("mode", "A")
     if mode == "B":
-        if not spec.get("_front_png") or not spec.get("_verified_projection"):
-            raise ValueError("verified source required")
-        with Image.open(BytesIO(spec["_front_png"])) as source:
-            front = ImageOps.exif_transpose(source).convert("RGBA")
-        if spec.get("_front_size"):
-            front = front.resize(tuple(spec["_front_size"]), Image.Resampling.LANCZOS)
-        bbox = spec.get("_front_bbox")
-        if bbox:
-            front = front.crop(tuple(bbox))
-        front.thumbnail((768, 1024))
-        background = Image.new("RGBA", front.size, "white")
-        background.alpha_composite(front)
-        front = background.convert("RGB").resize((768, 1280), Image.Resampling.LANCZOS)
         with Image.open(BytesIO(generic_check(spec["color"]))) as fallback:
             back = (
                 fallback.convert("RGB").resize((768, 1280), Image.Resampling.LANCZOS)
                 if spec.get("pattern") == "check"
                 else Image.new("RGB", (768, 1280), spec["color"])
             )
-        atlas = Image.new("RGB", (1536, 1280))
-        atlas.paste(front, (0, 0))
-        atlas.paste(back, (768, 0))
-        output = BytesIO()
-        atlas.save(output, format="PNG")
-        return output.getvalue(), "verified_front_projection"
+        return photo_atlas(spec, back)
     if spec.get("pattern") == "check":
         return generic_check(spec["color"]), "procedural_generic_check"
     return None, "solid_color"

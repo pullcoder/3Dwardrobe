@@ -1,7 +1,7 @@
 """직접 제작한 일반 의류 파라미터 메시와 자체 포함 glTF 2.0 GLB.
 
-A는 사진 외곽 수치와 자체 패턴만 사용한다. B는 권한 검증된 바지의 앞면만
-제한적으로 투영한다. 봉제/천 시뮬레이션 모델이 아니다.
+A는 사진 외곽 수치와 자체 패턴만 사용한다. B는 권한 검증된 티셔츠·바지의
+앞뒤 사진을 제한적으로 투영한다. 봉제/천 시뮬레이션 모델이 아니다.
 """
 
 import json
@@ -396,6 +396,8 @@ def build_glb(spec, progress=None):
     minimum = [min(min(m["positions"][i::3]) for m in meshes) for i in range(3)]
     maximum = [max(max(m["positions"][i::3]) for m in meshes) for i in range(3)]
     metadata = {
+        "engine": "template",
+        "generation_kind": "procedural",
         "category": spec["category"],
         "garment_type": spec["garment_type"],
         "unit": "meter",
@@ -457,10 +459,34 @@ def build_glb(spec, progress=None):
     )
     texture, texture_policy = (
         pants_materials(spec)
-        if spec.get("pants") or (spec.get("top_panel") and spec["pattern"] == "check")
+        if spec.get("pants")
+        or (spec.get("top_panel") and (spec["pattern"] == "check" or spec.get("mode") == "B"))
         else (None, "solid_color")
     )
     metadata["texture_policy"] = texture_policy
+    if spec.get("mode") == "B":
+        metadata["version"] = "stylefit-photo-projection-1.0"
+        metadata["photo_appearance"] = {
+            "front": "verified_photo",
+            "back": "verified_photo" if spec.get("_back_png") else "estimated",
+            "geometry": "template_with_observed_silhouette",
+            "uv_origin": "top_left",
+            "background_edge_bleed": True,
+        }
+        metadata["back_appearance"] = (
+            "verified_photo" if spec.get("_back_png") else "generic_estimated"
+        )
+        metadata["reconstruction_fidelity"] = (
+            "front_back_projection_approximation"
+            if spec.get("_back_png")
+            else "single_view_projection_approximation"
+        )
+        metadata["warnings"] = [
+            "사진의 색·무늬를 템플릿 표면에 투영했습니다. AI 고정밀 복원이 아닙니다.",
+            "후면 사진을 반영했지만 깊이·옆면·봉제 구조는 추정입니다."
+            if spec.get("_back_png")
+            else "후면 사진이 없어 뒷면은 일반 원단으로 추정합니다.",
+        ]
     if spec.get("pants"):
         metadata["pants"] = spec["pants"]
         metadata["surface_detail"] = "flattened_cloth_section_drape_folded_edges"
@@ -468,16 +494,19 @@ def build_glb(spec, progress=None):
         metadata["shape_source"] = (
             "photo_silhouette_estimate" if spec["pants"]["observed"] else "estimated"
         )
-        metadata["back_appearance"] = "generic_estimated"
-        metadata["reconstruction_fidelity"] = (
-            "single_view_projection_approximation"
-            if spec.get("mode") == "B"
-            else "generic_silhouette_approximation"
+        metadata.setdefault("back_appearance", "generic_estimated")
+        metadata.setdefault(
+            "reconstruction_fidelity",
+            (
+                "single_view_projection_approximation"
+                if spec.get("mode") == "B"
+                else "generic_silhouette_approximation"
+            ),
         )
-        metadata["warnings"] = [
+        metadata["warnings"] = ([*metadata["warnings"]] if spec.get("mode") == "B" else []) + [
             "사진 외곽은 투영 비율의 추정입니다. 깊이·후면·봉제 구조는 추정입니다.",
             "고무줄 주름은 일반적인 절차적 표현이며 실제 주름 복원이 아닙니다.",
-            "B 앞면 투영도 고정밀·다중 시점 복원이 아니며 후면 패턴은 추정입니다."
+            "B 사진 투영은 고정밀 입체 복원이 아니며 옆면·깊이·가려진 부위는 추정입니다."
             if spec.get("mode") == "B"
             else "체크는 자체 생성한 일반 패턴이며 원본 픽셀·로고·고유 그래픽을 복제하지 않습니다.",
             *spec["pants"]["warnings"],

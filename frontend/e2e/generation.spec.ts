@@ -69,6 +69,20 @@ test("실제 워커의 상의·바지·겉옷 GLB → 재조회 → 360도 뷰�
     await expect(
       panel.getByText("자동 선택 모드: A", { exact: true }),
     ).toBeVisible();
+    const engines = panel.getByRole("combobox", { name: "3D 생성 엔진" });
+    await expect(engines).toHaveValue("template");
+    await expect(engines.locator('option[value="triposr"]')).toHaveJSProperty(
+      "disabled",
+      true,
+    );
+    await expect(engines.locator('option[value="trellis2"]')).toHaveJSProperty(
+      "disabled",
+      true,
+    );
+    await panel.getByText("TRELLIS.2 사용 불가 사유", { exact: true }).click();
+    await expect(
+      panel.getByText(/공식 nvdiffrast\/nvdiffrec 경로의 비상업/),
+    ).toBeVisible();
     const queued = page.waitForResponse("**/generate-3d");
     await panel
       .getByRole("button", { name: "3D 모델 생성", exact: true })
@@ -193,9 +207,15 @@ test("실제 워커의 상의·바지·겉옷 GLB → 재조회 → 360도 뷰�
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
+    const modelDeleted = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/garments/${garment.id}/model`) &&
+        response.request().method() === "DELETE",
+    );
     await panel
       .getByRole("button", { name: "3D 모델 삭제·작업 취소", exact: true })
       .click();
+    expect((await modelDeleted).status()).toBe(204);
     await expect(canvas).toHaveCount(0);
     expect(
       (

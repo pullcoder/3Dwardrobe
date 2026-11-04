@@ -26,8 +26,12 @@ import "../features/fitting/studio.css";
 const FittingViewport = lazy(
   () => import("../features/fitting/FittingViewport"),
 );
+const TemplateWorkbench = lazy(
+  () => import("../features/templates/TemplateWorkbench"),
+);
 export function StudioPage() {
   const { auth } = useSession();
+  const [mode, setMode] = useState<"closet" | "templates">("closet");
   return (
     <>
       <PageHeading
@@ -39,8 +43,38 @@ export function StudioPage() {
         시각적 근사 피팅입니다. 실제 착용감·압박·소재 탄성을 계산하지 않으며
         관통이 남을 수 있습니다.
       </Notice>
-      <AccountPanel />
-      <StudioWorkspace key={auth?.user.id ?? "guest"} />
+      <div
+        className="studio-mode-controls"
+        role="group"
+        aria-label="피팅 작업 선택"
+      >
+        <button
+          type="button"
+          className={`button ${mode === "closet" ? "primary" : "secondary"}`}
+          aria-pressed={mode === "closet"}
+          onClick={() => setMode("closet")}
+        >
+          내 옷장 입어보기
+        </button>
+        <button
+          type="button"
+          className={`button ${mode === "templates" ? "primary" : "secondary"}`}
+          aria-pressed={mode === "templates"}
+          onClick={() => setMode("templates")}
+        >
+          템플릿 만들기
+        </button>
+      </div>
+      {mode === "closet" ? (
+        <>
+          <AccountPanel />
+          <StudioWorkspace key={auth?.user.id ?? "guest"} />
+        </>
+      ) : (
+        <Suspense fallback={<p role="status">템플릿 편집기 준비 중…</p>}>
+          <TemplateWorkbench />
+        </Suspense>
+      )}
     </>
   );
 }

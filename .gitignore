@@ -67,3 +67,4 @@ playwright-report/
 *.partial
 /frontend/e2e/fixtures/garments/
 /backend/models/weights/
+/backend/models/engines/

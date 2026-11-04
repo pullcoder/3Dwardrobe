@@ -1,5 +1,17 @@
 # 현재 아키텍처
 
+## 사용자 2단계 요청: 로컬 6종 템플릿 편집기
+
+StudioPage의 템플릿 만들기 → catalog의 정규화 입력 검증 → garmentGeometry의 연결 로프트·1.8mm 셸/UV/의미 부위 → 기존 MannequinModel/CameraControls와 같은 미터·Y-up 씬. 상의/하의/외투의 상태는 화면 메모리이며 기존 인증 GLB/코디 경로를 대체하지 않는다. 토폴로지 캐시와 모델 수명 해제로 로딩·메모리를 제한한다. DB/API 스키마·배경 제거 변경은 없다. [구현·검증·한계](CLOTHING_TEMPLATE_WORKBENCH.md).
+
+## 사진 외형 투영 확장
+
+사용자 티셔츠·바지 요청으로 B 투영을 앞뒤 사진까지 확장했다. 기존 큐가 검증된 본인 소유 자산 ID를 스냅샷으로 저장 → 워커가 revision/권한 재검사 → photo_materials의 알파/단색 배경 검사·색 확장·1MiB PNG 아틀라스 → 기존 패널/바지 GLB. DB 변경은 없고 원본 픽셀은 큐 JSON에 저장하지 않는다. 원본이 없는 후면을 추정 출처로 표시한다. GPU AI 경로와 별개이며 기존 의미 부위 피팅 계약을 유지한다. [세부](PHOTO_APPEARANCE.md).
+
+## 4단계 엔진 분리 (2026-11-04)
+
+UI 엔진 선택 → 기존 인증 API → generation_engines 가용성/권리 검사 → 기존 GenerationJob.snapshot(engine·자산 ID) → 워커 → template 또는 AI 독립 어댑터 → GLB 재검증 → 기존 비공개 Asset. DB 스키마 변경은 없다. AI는 입력 알파/권리 모드 전처리와 별도 검사기를 사용하고 템플릿 피팅 계약을 부여하지 않는다. 양 AI 엔진은 하드웨어·라이선스·전체 종속성 미감사로 비활성화 상태다. 서버/클라이언트의 피팅 경계 모두 AI 자동 착용을 거절한다. [도입 상태](AI_GENERATION_ENGINES.md).
+
 ## 5단계 피팅·코디 경로
 
 React StudioPage: 탭의 사진/수동 체형 + 세 의류 슬롯 → 인증 GET fittings/resources → 권한/카테고리/메타데이터 검사 → 인증 GLB → 계정/화면 수명에 한정한 제한 캐시 → 지원 부위별 정점 복제/변형 → 신체 근사·내부 의류 방사선 검사 → 동일 Canvas의 MannequinModel + 의류 3벌.

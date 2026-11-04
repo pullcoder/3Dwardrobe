@@ -44,6 +44,14 @@ export class FittingModelCache {
     };
   }
   async load(token: string, resource: FittingResource, signal: AbortSignal) {
+    if (
+      resource.metadata.generation_kind === "ai" ||
+      resource.metadata.engine === "triposr" ||
+      resource.metadata.engine === "trellis2"
+    )
+      throw new Error(
+        "AI 메시의 착용 구조가 미검증입니다. 기존 의류 템플릿으로 다시 생성해 주세요.",
+      );
     const key = resource.model_asset_id;
     const cached = this.entries.get(key);
     if (cached) {

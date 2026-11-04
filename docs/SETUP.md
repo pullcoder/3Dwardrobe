@@ -1,5 +1,17 @@
 # 로컬 설치·실행·검증
 
+## 6종 로컬 의류 템플릿
+
+새 패키지/모델/DB migration 없이 기존 `npm run dev`에서 `/#/studio` → 템플릿 만들기를 연다. GPU 추론 서버·로그인은 필요하지 않다. `npm test`, `npx playwright test e2e/templates.spec.ts`로 메시와 데스크톱/모바일 조작을 검사한다. 기존 서버 GLB/옷장 모드는 유지한다. [범위·수치·미구현](CLOTHING_TEMPLATE_WORKBENCH.md).
+
+## 티셔츠·바지 사진 외형
+
+새 패키지/가중치/DB migration은 없다. API와 생성 워커를 재시작하고 프론트 새로고침 후 모델을 재생성한다. 보관된 사진과 세 권한 verified가 있는 B에 앞뒤 사진을 반영한다. 일반 A는 원본 픽셀을 복사하지 않는다. backend의 `.venv/Scripts/python scripts/verify_photo_appearance.py`, frontend의 `npx playwright test e2e/photo-appearance.spec.ts`로 합성 표식/실제 GLB 렌더 검증을 재현한다. [사용과 한계](PHOTO_APPEARANCE.md).
+
+## AI 생성 엔진 어댑터
+
+현재 PC(Windows / GT 1030 2GB / CPU PyTorch)는 TripoSR 기본 실행 예산 및 TRELLIS.2 공식 환경에 부적합하다. 두 AI 엔진은 설치하지 않았고 가용성 UI/API만 연결했다. 기존 requirements/서버/워커 실행법은 유지한다. CUDA를 기존 `.venv`에 덮어쓰지 않는다. 라이선스 및 설치 보류 조건과 비교 명령은 [AI_GENERATION_ENGINES.md](AI_GENERATION_ENGINES.md)를 따른다.
+
 Python 3.12와 Node 24/npm을 사용한다. 3단계 CPU 추론은 PyTorch·CLIP·SAM과 Node Tesseract OCR을 사용한다. 외부 AI API 키는 필요 없다.
 
 ## 백엔드

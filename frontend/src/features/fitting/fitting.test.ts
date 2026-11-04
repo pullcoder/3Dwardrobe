@@ -82,6 +82,14 @@ function resource(mode: "A" | "B" = "A"): FittingResource {
   };
 }
 describe("실제 3D 메시의 시각적 근사 피팅", () => {
+  it("템플릿 계약을 붙인 AI 메시도 자동 착용하지 않는다", () => {
+    const ai = resource();
+    ai.metadata.engine = "triposr";
+    ai.metadata.generation_kind = "ai";
+    expect(() => fitGarment(model(), ai, profile, defaultAdjustment)).toThrow(
+      /호환성/,
+    );
+  });
   it("원본을 보존하고 미터 좌표의 마네킹 몸통 위치로 장착한다", () => {
     const source = model(),
       before = source.children[0] as Mesh;

@@ -10,9 +10,10 @@ from sqlalchemy import delete, select, update
 from app.core.errors import AppError
 from app.models import Asset, Garment, GenerationJob
 from app.services.garment_mesh import TEMPLATES, VERSION, build_glb, resolve_spec, validate_glb
+from app.services.generation_engines import engine_catalog, require_engine
 from app.services.generation_runtime import worker_status
 from app.services.pants_silhouette import PANTS, analyze_pants, valid_shape
-from app.services.top_silhouette import analyze_top, valid_top
+from app.services.top_silhouette import TOPS, analyze_top, valid_top
 
 B_HIGH_FIDELITY_AVAILABLE = False
 ACTIVE = ("queued", "processing")
@@ -27,8 +28,8 @@ def shape_asset(db, garment):
 
 
 def b_available(db, garment):
-    # 전체 B 엔진은 여전히 없다. 검증된 바지 앞면 투영에만 제한한다.
-    return garment.data.get("garment_type") in PANTS and shape_asset(db, garment) is not None
+    # 전체 AI 복원이 아닌, 검증된 사진의 티셔츠·바지 표면 투영만 지원한다.
+    return garment.data.get("garment_type") in PANTS | TOPS and shape_asset(db, garment) is not None
 
 
 def now():
@@ -86,6 +87,8 @@ def generation_read(db, garment):
         "updated_at": garment.updated_at,
         "supported_types": list(TEMPLATES),
         "runtime": worker_status(db),
+        "engines": engine_catalog(),
+        "selected_engine": job.snapshot.get("engine", "template") if job else "template",
         "failure": {"stage": job.failure_stage, "exception_type": job.exception_type}
         if job and job.status == "failed"
         else None,
@@ -121,16 +124,17 @@ def invalidate_generation(db, garment, reason="CANCELLED", bump_rights=False):
     db.execute(update(Garment).where(Garment.id == garment.id).values(**values))
 
 
-def enqueue(db, garment):
+def enqueue(db, garment, engine="template"):
     mode = selected_mode(garment)
     if not mode:
         raise AppError(
             "RIGHTS_REQUIRED", "사진 처리 권한을 확인하거나 권리 검토를 진행해 주세요.", 403
         )
-    if mode == "B" and not b_available(db, garment):
+    require_engine(engine)
+    if mode == "B" and engine == "template" and not b_available(db, garment):
         raise AppError(
             "B_UNAVAILABLE",
-            "현재 B는 저장된 앞면과 세 권한 검증이 있는 바지의 투영 근사만 지원합니다.",
+            "B 사진 외형은 저장된 앞면과 세 권한 검증이 있는 티셔츠·바지만 지원합니다.",
             503,
         )
     if garment.generation_status in ACTIVE:
@@ -175,7 +179,29 @@ def enqueue(db, garment):
                 )
         if valid_top(shape):
             spec = resolve_spec(garment.data, analysis, has_back)
+        if mode == "B" and engine == "template":
+            if not valid_top(shape):
+                raise AppError("CUTOUT_REQUIRED", "펼친 티셔츠의 누끼를 확인해 주세요.", 422)
+            spec["projection_asset_id"] = asset.id
+            spec["projection_bbox"] = shape["bbox"]
+            spec["projection_size"] = shape["image_size"]
+    if mode == "B" and engine == "template":
+        for slot in ("cutout_back", "back"):
+            back = db.scalar(
+                select(Asset).where(Asset.garment_id == garment.id, Asset.slot == slot)
+            )
+            if back:
+                spec["back_projection_asset_id"] = back.id
+                break
     spec["mode"] = mode
+    spec["engine"] = engine
+    if engine != "template":
+        asset = db.scalar(
+            select(Asset).where(Asset.garment_id == garment.id, Asset.slot == "cutout_front")
+        )
+        if not asset:
+            raise AppError("CUTOUT_REQUIRED", "저장된 3단계 누끼 이미지가 필요합니다.", 422)
+        spec["ai_asset_id"] = asset.id
     job_id = str(uuid4())
     changed = db.execute(
         update(Garment)
@@ -306,7 +332,8 @@ def run_once(factory, generator=build_glb):
             .values(
                 status="processing",
                 stage="mesh",
-                lease_until=time.time() + 120,
+                lease_until=time.time()
+                + (120 if job.snapshot.get("engine", "template") == "template" else 1800),
                 claim_token=token,
                 attempts=GenerationJob.attempts + 1,
                 updated_at=now(),
@@ -343,7 +370,18 @@ def run_once(factory, generator=build_glb):
             .values(generation_status="processing", model_3d_status="processing", updated_at=now())
         )
         snapshot = dict(job.snapshot)
-        if job.mode == "B":
+        if snapshot.get("engine", "template") != "template":
+            source = db.get(Asset, snapshot.get("ai_asset_id"))
+            if not source or source.garment_id != garment.id or source.slot != "cutout_front":
+                job.status, job.stage, job.error_code = "failed", "failed", "SOURCE_UNAVAILABLE"
+                job.claim_token, job.lease_until = None, None
+                garment.generation_status = garment.model_3d_status = "failed"
+                garment.generation_error = "SOURCE_UNAVAILABLE"
+                db.commit()
+                return True
+            snapshot["_ai_content"], snapshot["_ai_mime"] = source.content, source.mime
+            snapshot["_verified_details"] = selected_mode(garment) == "B"
+        if job.mode == "B" and snapshot.get("engine", "template") == "template":
             asset = db.get(Asset, snapshot.get("projection_asset_id"))
             if (
                 not asset
@@ -360,6 +398,10 @@ def run_once(factory, generator=build_glb):
             snapshot["_front_bbox"] = snapshot["projection_bbox"]
             snapshot["_front_size"] = snapshot["projection_size"]
             snapshot["_verified_projection"] = True
+            if snapshot.get("back_projection_asset_id"):
+                back = db.get(Asset, snapshot["back_projection_asset_id"])
+                if back and back.garment_id == garment.id and back.slot in {"back", "cutout_back"}:
+                    snapshot["_back_png"] = back.content
         db.commit()
     phase = "mesh"
 
@@ -379,11 +421,16 @@ def run_once(factory, generator=build_glb):
             db.commit()
 
     try:
-        content, metadata = (
-            build_glb(snapshot, progress=progress)
-            if generator is build_glb
-            else generator(snapshot)
-        )
+        if snapshot.get("engine", "template") != "template":
+            from app.services.ai_generation import generate_ai
+
+            content, metadata = generate_ai(snapshot, progress)
+        else:
+            content, metadata = (
+                build_glb(snapshot, progress=progress)
+                if generator is build_glb
+                else generator(snapshot)
+            )
         phase = "validating"
         with factory() as db:
             changed = db.execute(
@@ -398,7 +445,12 @@ def run_once(factory, generator=build_glb):
             db.commit()
             if not changed.rowcount:
                 return True
-        validate_glb(content)
+        if snapshot.get("engine", "template") == "template":
+            validate_glb(content)
+        else:
+            from app.ai.generated_mesh import inspect_glb
+
+            inspect_glb(content)
         phase = "saving"
         with factory() as db:
             job = db.get(GenerationJob, job_id)

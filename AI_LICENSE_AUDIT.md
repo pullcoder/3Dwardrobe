@@ -1,5 +1,29 @@
 # AI 모델 라이선스 검토
 
+## 로컬 6종 의류 템플릿
+
+사용자 2단계 요청의 반팔/긴팔/청바지/슬랙스/후드집업/재킷은 직접 작성한 로프트·셸·변형 코드다. 외부 의류 모델·사진 자산·AI 가중치를 도입하지 않았다. 기존 Three.js/R3F와 프로젝트 원본 마네킹만 재사용하며 기존 MIT 고지를 유지한다. 신규 외부 라이선스 도입은 없으며 입력/브랜드 디자인 권리를 대신 판단하지 않는다. [구현 범위](docs/CLOTHING_TEMPLATE_WORKBENCH.md).
+
+## 티셔츠·바지 앞뒤 사진 외형 확장
+
+사용자 요청으로 기존 Pillow/NumPy와 자체 GLB 패널의 B 사진 투영을 확장했다. 신규 AI 모델·외부 자산·가중치·라이브러리·외부 API는 없다. 보관된 본인 소유 사진과 세 권한 verified가 필요하며 코드가 증빙 검토를 대신하지 않는다. 개발 검증 입력은 직접 그린 합성 색상 표식이고 실제 사용자 사진을 재사용하지 않았다. 기존 라이선스 사본을 유지한다. [사진 외형 구현](docs/PHOTO_APPEARANCE.md).
+
+## 2026-11-04 TripoSR / TRELLIS.2 재검토
+
+설치·추론 없이 공식 원문을 확인했다. 사본·URL·SHA-256은 `docs/licenses/generation-engines/sources.json`. main URL 문서 해시는 확인 시점 증거이며 배포 바이너리 커밋 고정을 대신하지 않는다. [도입 상태](docs/AI_GENERATION_ENGINES.md)를 함께 따른다.
+
+| 구성 | 근거·조건 | 결정 |
+|---|---|---|
+| TripoSR 본체/가중치 | [공식 코드](https://github.com/VAST-AI-Research/TripoSR), [모델 카드](https://huggingface.co/stabilityai/TripoSR): MIT, 저작권·허가문 유지. 카드의 Objaverse CC-BY 선별 학습 자료 설명은 개별 출력물의 권리를 보증하지 않음 | 본체는 상업 후보, 전체 경로 보류 |
+| torchmcubes | [공식 LICENSE](https://github.com/tatsy/torchmcubes/blob/master/LICENSE): MPL-2.0. 상업 사용과 배포 시 covered source/고지 의무 구분 | requirements가 Git HEAD라 버전·바이너리·내장 코드 감사 필요 |
+| TripoSR 기타 | upstream requirements의 OmegaConf/Pillow/einops/transformers/trimesh/rembg/HF hub/imageio·ffmpeg/gradio/xatlas/moderngl. 직접 어댑터는 기존 SAM 누끼·정점 색으로 rembg와 baking을 호출하지 않음 | 고정 설치환경이 없어 전이 버전·내장 코드·보조 가중치·FFmpeg 조건 미확인. 본체 MIT만으로 승인하지 않음 |
+| TRELLIS.2 본체/가중치 | [코드](https://github.com/microsoft/TRELLIS.2/blob/main/LICENSE), [모델 카드](https://huggingface.co/microsoft/TRELLIS.2-4B): MIT. 연구 재현을 돕기 위한 공개 고지를 MIT의 비상업 제한으로 오해하지 않음 | 본체와 NVIDIA 조건을 분리 |
+| nvdiffrast v0.4.0 | [setup 지정 버전 LICENSE](https://github.com/NVlabs/nvdiffrast/blob/v0.4.0/LICENSE.txt) 3.3: NVIDIA 외에는 연구/평가 및 직접·간접 금전 이득 없는 용도. 배포 시 전체 라이선스·고지 유지 | 공개 조건으로 상용 활성화 금지 |
+| nvdiffrec | [공식 LICENSE](https://github.com/NVlabs/nvdiffrec/blob/main/LICENSE.txt) 3.3: 비상업 연구/평가, NVIDIA 예외. 사본/고지·파생물 조건 | 상용 비활성화. 영상 생략만으로 전체 GLB 경로에서 제거됐다고 가정하지 않음 |
+| TRELLIS 기타 | CUDA/PyTorch/FlashAttention/CuMesh/O-Voxel/FlexGEMM/utils3d/transformers·보조 비전 모델 등 | 정확한 배포 묶음의 전체 감사 미완료, 설치/자동 다운로드 없음 |
+
+현재 두 AI 엔진은 모든 환경에서 비활성화한다. 환경변수 우회는 없다. 상업 허가 또는 종속 경로 변경 후 재감사와 실행 검증이 필요하다. 모델 라이선스는 의류 사진/로고/디자인 권리를 대신하지 않는다.
+
 ## 5단계 실제 사용
 
 5단계는 기존 프로젝트의 직접 제작 마네킹·A 의류 메시, 기존 Three.js/R3F(MIT)·GLTFLoader·OrbitControls·Raycaster를 재사용한다. 새 학습 모델·가중치·외부 의류 자산·시뮬레이션 엔진·외부 API를 도입하지 않았다. 부위별 정점 변형, 신체 타원/캡슐 근사, 레이어 여유와 코디 저장 코드는 직접 작성했다. 기존 고지/라이선스 사본을 유지한다.

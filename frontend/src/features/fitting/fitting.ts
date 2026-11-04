@@ -34,6 +34,9 @@ export function fitGarment(
 ) {
   const meta = resource.metadata;
   if (
+    meta.generation_kind === "ai" ||
+    meta.engine === "triposr" ||
+    meta.engine === "trellis2" ||
     meta.unit !== "meter" ||
     meta.coordinate_system !== "y_up_z_front" ||
     meta.category !== resource.category ||

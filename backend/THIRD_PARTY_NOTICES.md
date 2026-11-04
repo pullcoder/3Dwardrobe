@@ -1,5 +1,9 @@
 # 3단계 서버 모델·의존성 고지
 
+## 4단계 신규 어댑터의 미설치 후보
+
+TripoSR/TRELLIS.2와 신규 GPU 종속성은 현재 설치·배포하지 않는다. 본체/모델 MIT와 torchmcubes MPL-2.0, NVIDIA 비상업 조건은 [감사 문서](../AI_LICENSE_AUDIT.md) 및 [원문 사본·출처](../docs/licenses/generation-engines/sources.json)에 분리 보존했다. 이 고지는 설치나 상용 승인을 의미하지 않는다. 향후 배포 시 정확한 버전의 전체 MIT 고지, MPL covered source 제공, 기타 전이 종속성 의무를 별도 충족해야 하며 NVIDIA 비상업 경로는 상용 활성화하지 않는다.
+
 - OpenCLIP 3.3.0: MIT, [코드](https://github.com/mlfoundations/open_clip), [라이선스 사본](../docs/licenses/OpenCLIP-MIT.txt).
 - LAION CLIP-ViT-B-32-laion2B-s34B-b79K 가중치: 모델 카드 `license: mit`, [고정 카드 사본](../docs/licenses/OpenCLIP-LAION-model-card.md). 모델 카드의 사용/평가 한계도 함께 보존한다.
 - OpenCLIP 파생 코드/토크나이저의 OpenAI 고지: [MIT](../docs/licenses/CLIP-MIT.txt). 원본 OpenAI CLIP 가중치는 사용하지 않는다.

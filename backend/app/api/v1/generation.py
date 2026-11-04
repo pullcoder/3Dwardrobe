@@ -1,6 +1,7 @@
 """인증된 3D 작업 등록·조회와 증빙 기반 관리자 권한 검토."""
 
 import hashlib
+from typing import Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, Request
@@ -31,6 +32,11 @@ router = APIRouter()
 
 class EmptyInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class GenerationInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    engine: Literal["template", "triposr", "trellis2"] = "template"
 
 
 @router.post("/garments/{garment_id}/silhouette")
@@ -97,10 +103,10 @@ async def analyze_silhouette(garment_id: str, request: Request):
 
 
 @router.post("/garments/{garment_id}/generate-3d", status_code=202)
-def generate(garment_id: str, body: EmptyInput, request: Request):
+def generate(garment_id: str, body: GenerationInput, request: Request):
     with database(request) as db:
         garment = owned(db, current_user(request, db).id, garment_id)
-        enqueue(db, garment)
+        enqueue(db, garment, body.engine)
         db.commit()
         return generation_read(db, garment)
 

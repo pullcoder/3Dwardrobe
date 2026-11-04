@@ -4,6 +4,12 @@
   gap: 16px;
   align-items: start;
 }
+.studio-mode-controls {
+  display: flex;
+  gap: 10px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
 .fitting-studio-layout > * {
   min-width: 0;
 }

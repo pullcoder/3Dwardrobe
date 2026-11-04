@@ -258,12 +258,13 @@ export async function getGeneration(
 export async function generateModel(
   token: string,
   id: string,
+  engine: "template" | "triposr" | "trellis2" = "template",
 ): Promise<GenerationState> {
   return (
     await request(`/garments/${id}/generate-3d`, token, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: "{}",
+      body: JSON.stringify({ engine }),
     })
   ).json();
 }

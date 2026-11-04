@@ -1,0 +1,51 @@
+[
+  {
+    "file": "trellis2-MIT.txt",
+    "url": "https://raw.githubusercontent.com/microsoft/TRELLIS.2/main/LICENSE",
+    "sha256": "d9a1b1e30d633d5732ea18e3cba9538d293ebc53e1a9e4e96ab739e0c5c4f1cb",
+    "retrieved": "2026-11-04",
+    "installed": false
+  },
+  {
+    "file": "triposr-MIT.txt",
+    "url": "https://raw.githubusercontent.com/VAST-AI-Research/TripoSR/main/LICENSE",
+    "sha256": "ade0a66629bdd7e01e46b3296b3851cff0fd27989bca53da470ad6e96ed620fb",
+    "retrieved": "2026-11-04",
+    "installed": false
+  },
+  {
+    "file": "nvdiffrast-v0.4.0-license.txt",
+    "url": "https://raw.githubusercontent.com/NVlabs/nvdiffrast/v0.4.0/LICENSE.txt",
+    "sha256": "ce20436c2730611757d3c7ed2b4d9bef8315a8a0af0540ff8baa5dce7a94f5da",
+    "retrieved": "2026-11-04",
+    "installed": false
+  },
+  {
+    "file": "nvdiffrec-license.txt",
+    "url": "https://raw.githubusercontent.com/NVlabs/nvdiffrec/main/LICENSE.txt",
+    "sha256": "010b1f83d9e87e360e6530ea5395fa3592d719c248c6fd905edcb5e045ddedaf",
+    "retrieved": "2026-11-04",
+    "installed": false
+  },
+  {
+    "file": "torchmcubes-MPL-2.0.txt",
+    "url": "https://raw.githubusercontent.com/tatsy/torchmcubes/master/LICENSE",
+    "sha256": "393eaf2b92b3d49bea139e39b6fd205b6e99c499999986aec5554586a830dfdd",
+    "retrieved": "2026-11-04",
+    "installed": false
+  },
+  {
+    "file": "trellis2-model-card.md",
+    "url": "https://huggingface.co/microsoft/TRELLIS.2-4B/raw/main/README.md",
+    "sha256": "ab08bd7f555372317d166220dbd2c17c73b5a238d45da018ef301c1e32aec8a8",
+    "retrieved": "2026-11-04",
+    "installed": false
+  },
+  {
+    "file": "triposr-model-card.md",
+    "url": "https://huggingface.co/stabilityai/TripoSR/raw/main/README.md",
+    "sha256": "5c12ef5b850c6ee2aa7454b1a264f6f8dfa95164384dbb1ab374acd917aa558b",
+    "retrieved": "2026-11-04",
+    "installed": false
+  }
+]

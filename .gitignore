@@ -40,6 +40,7 @@ htmlcov/
 # 루트 기준(/)으로 고정: backend/app/storage/ 같은 소스 폴더가 무시되지 않게
 /storage/
 /backend/storage/
+/backend/out/
 /uploads/
 /media/
 *.log

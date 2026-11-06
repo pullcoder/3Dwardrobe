@@ -79,6 +79,7 @@ celery -A app.workers.celery_app worker --loglevel=info --pool=solo
 - **3D 인체 메시 (M+6부터)**: 상업 이용이 허용된 오픈소스 메시(MakeHuman 기반 등)를 사용합니다. 받는 방법은 T2-1 결정 후 여기에 추가합니다.
 - **SMPL/SMPL-X는 비상업용 라이선스**라 개인 실험용으로도 이 저장소에 넣지 않습니다. (`DECISIONS.md` D-010)
 - MediaPipe, RMBG 등은 첫 실행 시 자동 다운로드되거나 설치 스크립트로 받습니다. (방법이 정해지면 여기 추가)
+- **의류 누끼 모델**: AI Hub K-Fashion 데이터로 직접 학습합니다. 방법은 [`AI_GARMENT_PIPELINE.md`](AI_GARMENT_PIPELINE.md).
 
 ## 6. 프론트엔드 (React)
 

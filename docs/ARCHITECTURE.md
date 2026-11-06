@@ -99,15 +99,19 @@
     │   ├── services/          # 비즈니스 로직
     │   ├── workers/           # Celery 앱 + 작업 정의 (tasks)
     │   ├── ai/                # AI 파이프라인 모듈 (워커에서 호출)
-    │   │   ├── segmentation.py   # RMBG / SAM 누끼
+    │   │   ├── config.py         # AI 경로(AI_WEIGHTS_DIR)·세그멘테이션 클래스
+    │   │   ├── datasets/         # 학습 데이터 로더 (K-Fashion 등, 학습 스크립트에서만 사용)
+    │   │   ├── segmentation.py   # 의류 부위 세그멘테이션 모델 (K-Fashion 학습), RMBG / SAM 누끼
+    │   │   ├── cutout.py         # 마스크 → 부위별 누끼 PNG + OpenCV 경계 보정
     │   │   ├── pose.py           # MediaPipe 특징점, cm 환산
     │   │   ├── body_template.py  # 2.5D 피팅 템플릿 (MVP)
     │   │   ├── body_mesh.py      # 3D 인체 메시 (M+6, 교체 가능 인터페이스)
     │   │   ├── tagging.py        # VLM 태깅
     │   │   ├── ocr.py            # 사이즈표·소재표 OCR
-    │   │   ├── garment_asset.py  # 2.5D/3D 의류 에셋 + 치수 매핑 (B2B 공용)
+    │   │   ├── garment_asset.py  # 2.5D/3D 의류 에셋(누끼 → 부풀린 3D 메시 .glb) + 치수 매핑 (B2B 공용)
     │   │   └── matching.py       # 컬러 하모니 + 스타일 가중치 + 코사인 → 0~100
     │   └── storage/           # 파일 저장 추상화 (local / s3)
+    ├── scripts/               # 학습·일괄 처리 스크립트 (python -m scripts.xxx)
     ├── models/weights/        # 모델 가중치 (git 제외)
     └── tests/
 ```

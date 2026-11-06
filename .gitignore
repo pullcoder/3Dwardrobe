@@ -40,6 +40,11 @@ htmlcov/
 # 루트 기준(/)으로 고정: backend/app/storage/ 같은 소스 폴더가 무시되지 않게
 /storage/
 /backend/storage/
+/backend/out/
+# AI Hub 원본 데이터 (재배포 금지, D-014). 저장소 폴더 안에 받아 둔 경우를 대비
+/2D/
+/3D/
+/datasets/
 /uploads/
 /media/
 *.log

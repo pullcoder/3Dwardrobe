@@ -33,7 +33,8 @@
    ```bash
    cat 파일명.zip.part* > 파일명.zip     # Windows: WSL 또는 Git Bash에서
    ```
-3. 압축을 푼 폴더를 아무 곳에 둔다 (예: `D:/aihub/K-Fashion_sample`). **저장소 안에 넣지 않는다** (재배포 금지, 용량).
+3. 압축을 푼 폴더를 아무 곳에 둔다 (예: `D:/aihub/K-Fashion_sample`). 저장소 밖에 두는 게 가장 안전하다. 저장소 안이라면 `2D/`, `3D/`, `datasets/` 폴더만 `.gitignore`로 막혀 있다 (재배포 금지).
+4. 이미지 파일 이름은 라벨 JSON 파일 이름과 같다 (`1016530.jpg` ↔ `1016530.json`). JSON 안의 `이미지 파일명`은 촬영 원본 이름이라 실제 파일과 다르다. 이름을 직접 바꾸면 짝이 끊기므로 `organize_kfashion`을 쓴다.
 
 폴더 구조는 신경 쓰지 않아도 된다. 하위 폴더 전체에서 `.json` 라벨을 찾고, JSON 안의 이미지 파일명
 (없으면 JSON 파일 이름)으로 이미지를 짝짓는다. 라벨이 다른 곳에 있으면 `--labels-dir`로 지정한다.
@@ -50,6 +51,10 @@ pip install -r requirements-ai.txt
 ## 4. 데이터 확인 → 학습 → 실행 (backend/ 폴더에서)
 
 ```bash
+# (선택) 원천+라벨링을 한 폴더로 합치고 이름에 특징 붙이기. 원본은 그대로, 복사만 함
+#  → 1016530_레트로_상의-탑-화이트_하의-청바지-스카이블루.jpg/.json + index.csv
+python -m scripts.organize_kfashion --data-dir "C:/Temp/3Dwardrobe/2D/New_sample" --out-dir "C:/Temp/kfashion_merged"
+
 # ① 데이터가 제대로 읽히는지 + 마스크 미리보기 5장 (out/kfashion_preview/)
 python -m scripts.check_kfashion --data-dir "D:/aihub/K-Fashion_sample" --preview 5
 

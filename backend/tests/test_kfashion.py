@@ -62,3 +62,17 @@ def test_labelme_format(tmp_path):
 
     samples, skipped = scan_dataset(tmp_path, label_map={"face": "top"})
     assert set(samples[0].polygons) == {"top"}
+
+
+def test_organized_names_still_pair(fake_dataset, tmp_path):
+    import sys
+
+    from scripts import organize_kfashion
+
+    out = tmp_path / "merged"
+    sys.argv = ["x", "--data-dir", str(fake_dataset), "--out-dir", str(out)]
+    organize_kfashion.main()
+    names = sorted(p.name for p in out.rglob("*.jpg"))
+    assert names[0] == "1000_스트리트_상의-티셔츠-레드_하의-청바지-블루.jpg"
+    samples, skipped = scan_dataset(out)
+    assert len(samples) == 4 and not skipped

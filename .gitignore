@@ -41,6 +41,10 @@ htmlcov/
 /storage/
 /backend/storage/
 /backend/out/
+# AI Hub 원본 데이터 (재배포 금지, D-014). 저장소 폴더 안에 받아 둔 경우를 대비
+/2D/
+/3D/
+/datasets/
 /uploads/
 /media/
 *.log
